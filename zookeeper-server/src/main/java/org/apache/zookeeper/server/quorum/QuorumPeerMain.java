@@ -120,6 +120,16 @@ public class QuorumPeerMain {
         ServiceUtils.requestSystemExit(ExitCode.EXECUTION_FINISHED.getValue());
     }
 
+    /**
+     * zk集群或单击模式初始化&启动
+     * 从以下代码可以看出输入的参数有两种情况:
+     * 1. 只有一个参数,按照配置文件路径解析
+     * 2. 不是一个参数,按照配置参数解析,顺序:clientPortAddress，dataDir，dataLogDir，tickTime，maxClientCnxns
+     * @param args
+     * @throws ConfigException
+     * @throws IOException
+     * @throws AdminServerException
+     */
     protected void initializeAndRun(String[] args) throws ConfigException, IOException, AdminServerException {
         // 1. args中存在配置文件路径则解析配置文件内容到QuorumPeerConfig
         QuorumPeerConfig config = new QuorumPeerConfig();

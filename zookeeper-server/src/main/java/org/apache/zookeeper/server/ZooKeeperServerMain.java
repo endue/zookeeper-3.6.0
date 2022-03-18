@@ -57,7 +57,7 @@ public class ZooKeeperServerMain {
     private AdminServer adminServer;
 
     /*
-     * 单机模式启动入口
+     * 单机模式初始化&启动入口
      *
      * Start up the ZooKeeper server.
      *
@@ -97,6 +97,15 @@ public class ZooKeeperServerMain {
         ServiceUtils.requestSystemExit(ExitCode.EXECUTION_FINISHED.getValue());
     }
 
+    /**
+     * 从以下代码可以看出输入的参数有两种情况:
+     * 1. 只有一个参数,按照配置文件路径解析
+     * 2. 不是一个参数,按照配置参数解析,顺序:clientPortAddress，dataDir，dataLogDir，tickTime，maxClientCnxns
+     * @param args
+     * @throws ConfigException
+     * @throws IOException
+     * @throws AdminServerException
+     */
     protected void initializeAndRun(String[] args) throws ConfigException, IOException, AdminServerException {
         try {
             ManagedUtil.registerLog4jMBeans();
@@ -115,6 +124,7 @@ public class ZooKeeperServerMain {
     }
 
     /**
+     * 基于服务配置文件启动
      * Run from a ServerConfig.
      * @param config ServerConfig to use.
      * @throws IOException
