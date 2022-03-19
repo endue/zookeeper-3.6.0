@@ -28,6 +28,8 @@ import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig.ConfigException;
 
 /**
+ * zk单机模式的服务配置文件
+ *
  * Server configuration storage.
  *
  * We use this instead of Properties as it's typed.
@@ -40,6 +42,7 @@ public class ServerConfig {
     //// If you update the configuration parameters be sure
     //// to update the "conf" 4letter word
     ////
+    // 基于客户端ip + port构建的套接字地址
     protected InetSocketAddress clientPortAddress;
     protected InetSocketAddress secureClientPortAddress;
     protected File dataDir;
@@ -66,6 +69,7 @@ public class ServerConfig {
     protected long jvmPauseSleepTimeMs;
 
     /**
+     * 不是一个参数,按照配置参数解析,顺序:clientPortAddress，dataDir，dataLogDir，tickTime，maxClientCnxns
      * Parse arguments for server configuration
      * @param args clientPort dataDir and optional tickTime and maxClientCnxns
      * @throws IllegalArgumentException on invalid usage
@@ -87,6 +91,7 @@ public class ServerConfig {
     }
 
     /**
+     * 只有一个参数,按照配置文件路径解析
      * Parse a ZooKeeper configuration file
      * @param path the patch of the configuration file
      * @throws ConfigException error processing configuration
