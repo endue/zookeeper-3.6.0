@@ -124,7 +124,7 @@ public class ZooKeeperServerMain {
     }
 
     /**
-     * 基于服务配置文件启动
+     * 基于zk单机模式服务配置文件启动
      * Run from a ServerConfig.
      * @param config ServerConfig to use.
      * @throws IOException
@@ -134,6 +134,7 @@ public class ZooKeeperServerMain {
         LOG.info("Starting server");
         FileTxnSnapLog txnLog = null;
         try {
+            // 1. 监控相关?
             try {
                 metricsProvider = MetricsProviderBootstrap.startMetricsProvider(
                     config.getMetricsProviderClassName(),
@@ -146,30 +147,39 @@ public class ZooKeeperServerMain {
             // so rather than spawning another thread, we will just call
             // run() in this thread.
             // create a file logger url from the command line args
+            // 2. 创建数据日志和数据目录文件夹
             txnLog = new FileTxnSnapLog(config.dataLogDir, config.dataDir);
+            // 3. JVM监控相关?
             JvmPauseMonitor jvmPauseMonitor = null;
             if (config.jvmPauseMonitorToRun) {
                 jvmPauseMonitor = new JvmPauseMonitor(config);
             }
+            // 4. 创建zk服务
             final ZooKeeperServer zkServer = new ZooKeeperServer(jvmPauseMonitor, txnLog, config.tickTime, config.minSessionTimeout, config.maxSessionTimeout, config.listenBacklog, null, config.initialConfig);
+            // 5. 将zk服务统计信息对象设置到日志对象中
             txnLog.setServerStats(zkServer.serverStats());
 
             // Registers shutdown handler which will be used to know the
             // server error or shutdown state changes.
+            // 6. 注册zk服务器关闭或异常监听器
             final CountDownLatch shutdownLatch = new CountDownLatch(1);
             zkServer.registerServerShutdownHandler(new ZooKeeperServerShutdownHandler(shutdownLatch));
 
             // Start Admin server
+            // 7. todo 这里创建这个干什么用?
             adminServer = AdminServerFactory.createAdminServer();
             adminServer.setZooKeeperServer(zkServer);
             adminServer.start();
 
+            // 8. 启动相关服务,用户监听客户的请求
+            // NIO默认不支持SSL,需要Netty模式
             boolean needStartZKServer = true;
             if (config.getClientPortAddress() != null) {
                 cnxnFactory = ServerCnxnFactory.createFactory();
                 cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), config.getClientPortListenBacklog(), false);
                 cnxnFactory.startup(zkServer);
                 // zkServer has been started. So we don't need to start it again in secureCnxnFactory.
+                // 已启动zkServer服务。所以我们不需要在secureCnxnFactory中再次启动它
                 needStartZKServer = false;
             }
             if (config.getSecureClientPortAddress() != null) {

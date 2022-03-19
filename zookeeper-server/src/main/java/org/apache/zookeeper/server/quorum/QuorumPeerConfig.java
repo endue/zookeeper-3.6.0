@@ -64,8 +64,12 @@ public class QuorumPeerConfig {
     private static final Logger LOG = LoggerFactory.getLogger(QuorumPeerConfig.class);
     private static final int UNSET_SERVERID = -1;
     public static final String nextDynamicConfigFileSuffix = ".dynamic.next";
-
+    //
     private static boolean standaloneEnabled = true;
+    /**
+     * 动态重新配置特性默认禁用,修改reconfigEnabled显式地打开
+     * 配合{@link QuorumPeerConfig#dynamicConfigFileStr}使用
+     */
     private static boolean reconfigEnabled = false;
 
     protected InetSocketAddress clientPortAddress;
@@ -76,6 +80,10 @@ public class QuorumPeerConfig {
     protected boolean sslQuorumReloadCertFiles = false;
     protected File dataDir;
     protected File dataLogDir;
+    /**
+     * 动态配置文件路径,参考{https://zookeeper.apache.org/doc/r3.6.3/zookeeperReconfig.html}
+     * 配合{@link QuorumPeerConfig#reconfigEnabled}使用
+     */
     protected String dynamicConfigFileStr = null;
     protected String configFileStr = null;
     protected int tickTime = ZooKeeperServer.DEFAULT_TICK_TIME;
