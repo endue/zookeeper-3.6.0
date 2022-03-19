@@ -113,7 +113,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      * and SelectorThread (which selects on client connections) classes.
      */
     private abstract class AbstractSelectThread extends ZooKeeperThread {
-
+        // 被子类公用
         protected final Selector selector;
 
         public AbstractSelectThread(String name) throws IOException {
@@ -232,6 +232,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                             // queue, pause accepting to give us time to free
                             // up file descriptors and so the accept thread
                             // doesn't spin in a tight loop.
+                            // 如果没有将OP_ACCEPT事件处理掉,那么暂停10ms
                             pauseAccept(10);
                         }
                     } else {
@@ -273,12 +274,13 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             try {
                 sc = acceptSocket.accept();
                 accepted = true;
+                // 判断是否达到当前服务的最大连接数
                 if (limitTotalNumberOfCnxns()) {
                     throw new IOException("Too many connections max allowed is " + maxCnxns);
                 }
                 InetAddress ia = sc.socket().getInetAddress();
                 int cnxncount = getClientCnxnCount(ia);
-
+                // 判断是否达到当前运行客户端的最大连接数
                 if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                     throw new IOException("Too many connections from " + ia + " - max is " + maxClientCnxns);
                 }
@@ -286,7 +288,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 LOG.debug("Accepted socket connection from {}", sc.socket().getRemoteSocketAddress());
 
                 sc.configureBlocking(false);
-
+                // 将连接的所有客户端轮询给SelectorThread
                 // Round-robin assign this connection to a selector thread
                 if (!selectorIterator.hasNext()) {
                     selectorIterator = selectorThreads.iterator();
@@ -332,6 +334,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     class SelectorThread extends AbstractSelectThread {
 
         private final int id;
+        // 当AcceptThread监听到OP_ACCEPT时,会将与客户端建立的SocketChannel传递过来保存到该队列
         private final Queue<SocketChannel> acceptedQueue;
         private final Queue<SelectionKey> updateQueue;
 
@@ -343,6 +346,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
 
         /**
+         * 当AcceptThread监听到OP_ACCEPT时,会将与客户端建立的SocketChannel传递过来
          * Place new accepted connection onto a queue for adding. Do this
          * so only the selector thread modifies what keys are registered
          * with the selector.
@@ -379,8 +383,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             try {
                 while (!stopped) {
                     try {
+                        // 1. 处理OP_READ/OP_WRITE事件
                         select();
+                        // 2. 处理OP_CONNECT事件
                         processAcceptedConnections();
+                        // 3. 更新关注事件类型
                         processInterestOpsUpdateRequests();
                     } catch (RuntimeException e) {
                         LOG.warn("Ignoring unexpected runtime exception", e);
@@ -629,6 +636,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     private AcceptThread acceptThread;
     private final Set<SelectorThread> selectorThreads = new HashSet<SelectorThread>();
 
+
     @Override
     public void configure(InetSocketAddress addr, int maxcc, int backlog, boolean secure) throws IOException {
         if (secure) {
@@ -678,6 +686,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             ss.socket().bind(addr, listenBacklog);
         }
         ss.configureBlocking(false);
+        // 初始化AcceptThread时将ss设置为关注OP_ACCEPT事件
         acceptThread = new AcceptThread(ss, addr, selectorThreads);
     }
 
@@ -752,10 +761,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer) throws IOException, InterruptedException {
+        // 1. 启动NIO,接收客户端的请求
         start();
+        // 2. 设置ServerCnxnFactory和ZooKeeperServer互相持有
         setZooKeeperServer(zks);
+        // 防止重复创建和启动
         if (startServer) {
+            // 3. 创建内存数据库
             zks.startdata();
+            // 4. 启动服务
             zks.startup();
         }
     }
