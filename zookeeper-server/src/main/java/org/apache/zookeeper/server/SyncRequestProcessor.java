@@ -109,6 +109,10 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         return snapCount;
     }
 
+    /**
+     * 计算下一次刷盘剩余时间
+     * @return
+     */
     private long getRemainingDelay() {
         long flushDelay = zks.getFlushDelay();
         long duration = Time.currentElapsedTime() - lastFlushTime;
@@ -140,6 +144,12 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         snapSizeInBytes = size;
     }
 
+    /**
+     * 判断是否需要创建新快照,两个条件满足其一即可
+     * 1. 自上次刷新快照以来,当前事务请求数大于snapCount / 2 + randRoll,randRoll是个随机值
+     * 2. 自上次刷新快照以来,当前事务请求大小大于snapSizeInBytes / 2 + randSize,randSize是个随机值
+     * @return
+     */
     private boolean shouldSnapshot() {
         int logCount = zks.getZKDatabase().getTxnCount();
         long logSize = zks.getZKDatabase().getTxnSize();
@@ -147,6 +157,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                || (snapSizeInBytes > 0 && logSize > (snapSizeInBytes / 2 + randSize));
     }
 
+    /**
+     * 重置触发新快照的随机值
+     */
     private void resetSnapshotStats() {
         randRoll = ThreadLocalRandom.current().nextInt(snapCount / 2);
         randSize = Math.abs(ThreadLocalRandom.current().nextLong() % (snapSizeInBytes / 2));
@@ -161,15 +174,17 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
             lastFlushTime = Time.currentElapsedTime();
             while (true) {
                 ServerMetrics.getMetrics().SYNC_PROCESSOR_QUEUE_SIZE.add(queuedRequests.size());
-
+                // 1. 计算获取新请求所需等待的时间,涉及到两个配置参数:flushDelay/maxWriteQueuePollTime
                 long pollTime = Math.min(zks.getMaxWriteQueuePollTime(), getRemainingDelay());
                 Request si = queuedRequests.poll(pollTime, TimeUnit.MILLISECONDS);
+                // 2. 从缓存队列中获取请求为null,说明此时没有待处理请求,趁此抓紧执行刷盘操作而不需等待shouldFlush()的到来
                 if (si == null) {
                     /* We timed out looking for more writes to batch, go ahead and flush immediately */
                     flush();
+                    // 2.1 缓存队列中没有请求,那么当前processor阻塞在这里
                     si = queuedRequests.take();
                 }
-
+                // 3. 关闭当前processor
                 if (si == REQUEST_OF_DEATH) {
                     break;
                 }
@@ -178,15 +193,19 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                 ServerMetrics.getMetrics().SYNC_PROCESSOR_QUEUE_TIME.add(startProcessTime - si.syncQueueStartTime);
 
                 // track the number of records written to the log
+                // 4. 将请求添加到FileTxnLog中,此时还未刷磁盘
                 if (zks.getZKDatabase().append(si)) {
+                    // 4.1 每成功添加一个请求到FileTxnLog就判断一下是否需要生成一个新的事务日志文件
                     if (shouldSnapshot()) {
                         resetSnapshotStats();
                         // roll the log
+                        // 4.2 将当前FileTxnLog刷入磁盘,当处理下一个事务请求时,会生成新事务日志文件
                         zks.getZKDatabase().rollLog();
                         // take a snapshot
                         if (!snapThreadMutex.tryAcquire()) {
                             LOG.warn("Too busy to snap, skipping");
                         } else {
+                            // 4.3 创建线程将datatree和sessions刷入FileSnap
                             new ZooKeeperThread("Snapshot Thread") {
                                 public void run() {
                                     try {
