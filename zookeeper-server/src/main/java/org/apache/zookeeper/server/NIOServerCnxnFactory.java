@@ -759,6 +759,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
     }
 
+    /**
+     * 启动zk服务
+     * 注意这里:先启动NIO以便快速接收客户端的请求,之后才会启动zk服务
+     * @param zks
+     * @param startServer
+     * @throws IOException
+     * @throws InterruptedException
+     */
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer) throws IOException, InterruptedException {
         // 1. 启动NIO,接收客户端的请求

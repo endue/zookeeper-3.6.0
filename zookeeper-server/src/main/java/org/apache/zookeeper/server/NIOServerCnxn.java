@@ -164,23 +164,30 @@ public class NIOServerCnxn extends ServerCnxn {
                                        DisconnectReason.UNABLE_TO_READ_FROM_CLIENT);
     }
 
+    /**
+     * 读取客户端发送的命令
+     */
     /** Read the request payload (everything following the length prefix) */
     private void readPayload() throws IOException, InterruptedException, ClientCnxnLimitException {
+        // 1. 读取数据
         if (incomingBuffer.remaining() != 0) { // have we read length bytes?
             int rc = sock.read(incomingBuffer); // sock is non-blocking, so ok
             if (rc < 0) {
                 handleFailedRead();
             }
         }
-
+        // 2. 数据读取完毕开始处理
         if (incomingBuffer.remaining() == 0) { // have we read length bytes?
             incomingBuffer.flip();
             packetReceived(4 + incomingBuffer.remaining());
+            // 2.1 当前NIOServerCnxn未与客户端建立连接,那么此时收到的第一个命令一定是ConnectRequest
             if (!initialized) {
                 readConnectRequest();
+            // 2.2 当前NIOServerCnxn与客户端建立连接,处理其他命令
             } else {
                 readRequest();
             }
+            // 2.3 处理完命令,初始化incomingBuffer为lenBuffer
             lenBuffer.clear();
             incomingBuffer = lenBuffer;
         }
@@ -311,6 +318,7 @@ public class NIOServerCnxn extends ServerCnxn {
     }
 
     /**
+     * 处理客户端的读/写事件
      * Handles read/write IO on connection.
      */
     void doIO(SelectionKey k) throws InterruptedException {
@@ -320,21 +328,29 @@ public class NIOServerCnxn extends ServerCnxn {
 
                 return;
             }
+            // 1. 处理读事件
             if (k.isReadable()) {
+                // 1.1 读取内容到incomingBuffer
                 int rc = sock.read(incomingBuffer);
-                if (rc < 0) {
+                if (rc < 0) {// 读取失败
                     handleFailedRead();
                 }
+                // 1.2 incomingBuffer无剩余空间,说明读取到的内容已将其填满,此时有几种情况
+                // a. incomingBuffer == lenBuffer 表明读取的是新请求,此时incomingBuffer中存储的是请求的大小
+                // b. incomingBuffer != lenBuffer 表明读取的非新请求,上次的请求发生了拆包,此时incomingBuffer中存储请求的数据
                 if (incomingBuffer.remaining() == 0) {
                     boolean isPayload;
+                    // 1.2.1 incomingBuffer为lenBuffer,此时incomingBuffer中存储的是数据长度或4字母命令(4字母命令参考官网{@link https://zookeeper.apache.org/doc/r3.6.3/zookeeperAdmin.html#sc_4lw})
                     if (incomingBuffer == lenBuffer) { // start of next request
                         incomingBuffer.flip();
+                        // 1.2.2 读取incomingBuffer中请求的大小,并重新初始化incomingBuffer为数据的大小,用于后续读取数据
                         isPayload = readLength(k);
                         incomingBuffer.clear();
                     } else {
                         // continuation
                         isPayload = true;
                     }
+                    // 1.2.3 读取请求数据到incomingBuffer中并处理
                     if (isPayload) { // not the case for 4letterword
                         readPayload();
                     } else {
@@ -344,6 +360,7 @@ public class NIOServerCnxn extends ServerCnxn {
                     }
                 }
             }
+            // 2. 处理写事件
             if (k.isWritable()) {
                 handleWrite(k);
 
@@ -375,6 +392,10 @@ public class NIOServerCnxn extends ServerCnxn {
         }
     }
 
+    /**
+     * 处理客户端的命令请求
+     * @throws IOException
+     */
     private void readRequest() throws IOException {
         zkServer.processPacket(this, incomingBuffer);
     }
@@ -412,10 +433,17 @@ public class NIOServerCnxn extends ServerCnxn {
         }
     }
 
+    /**
+     * 处理客户端ConnnectRequest命令请求
+     * @throws IOException
+     * @throws InterruptedException
+     * @throws ClientCnxnLimitException
+     */
     private void readConnectRequest() throws IOException, InterruptedException, ClientCnxnLimitException {
         if (!isZKServerRunning()) {
             throw new IOException("ZooKeeperServer not running");
         }
+        // 注意: 这里将对应该客户端的NIOServerCnxn也传入了进去
         zkServer.processConnectRequest(this, incomingBuffer);
         initialized = true;
     }
