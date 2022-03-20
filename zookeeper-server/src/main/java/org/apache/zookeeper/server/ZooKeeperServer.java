@@ -1067,6 +1067,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         enqueueRequest(si);
     }
 
+    /**
+     * 处理客户端各种请求
+     * 请求先到该方法,然后在调用{@link ZooKeeperServer#submitRequestNow(org.apache.zookeeper.server.Request)}
+     * @param si
+     */
     public void enqueueRequest(Request si) {
         if (requestThrottler == null) {
             synchronized (this) {
@@ -1075,6 +1080,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                     // processor it should wait for setting up the request
                     // processor chain. The state will be updated to RUNNING
                     // after the setup.
+                    /**
+                     *  这里等待是防止requestThrottler未初始化完毕,参考{@link org.apache.zookeeper.server.NIOServerCnxnFactory#startup}
+                     *  以及{@link ZooKeeperServer#startup()}
+                     */
                     while (state == State.INITIAL) {
                         wait(1000);
                     }
@@ -1089,6 +1098,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         requestThrottler.submitRequest(si);
     }
 
+    /**
+     * 处理客户端各种请求
+     * 请求先到{@link ZooKeeperServer#enqueueRequest(org.apache.zookeeper.server.Request)}再到该方法
+     * @param si
+     */
     public void submitRequestNow(Request si) {
         if (firstProcessor == null) {
             synchronized (this) {
@@ -1097,6 +1111,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                     // processor it should wait for setting up the request
                     // processor chain. The state will be updated to RUNNING
                     // after the setup.
+                    /**
+                     *  这里等待是防止processor链条未初始化完毕,参考{@link org.apache.zookeeper.server.NIOServerCnxnFactory#startup}
+                     *  以及{@link ZooKeeperServer#startup()}
+                     */
                     while (state == State.INITIAL) {
                         wait(1000);
                     }
@@ -1318,7 +1336,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     /**
-     * 处理客户端ConnectRequest
+     * 1. 处理客户端ConnectRequest,处理完毕后即与客户端建立了连接
      * @param cnxn
      * @param incomingBuffer
      * @throws IOException
@@ -1327,7 +1345,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "the value won't change after startup")
     public void processConnectRequest(ServerCnxn cnxn, ByteBuffer incomingBuffer)
         throws IOException, ClientCnxnLimitException {
-
+        // 1. 读取ConnectRequest为ConnectRequest对象
         BinaryInputArchive bia = BinaryInputArchive.getArchive(new ByteBufferInputStream(incomingBuffer));
         ConnectRequest connReq = new ConnectRequest();
         connReq.deserialize(bia, "connect");
@@ -1335,10 +1353,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             "Session establishment request from client {} client's lastZxid is 0x{}",
             cnxn.getRemoteSocketAddress(),
             Long.toHexString(connReq.getLastZxidSeen()));
-
+        // 2. 获取ConnectRequest中的sessionId(会话等级分为:global, renew, local成本或者叫令牌数依次3, 2, 1)
         long sessionId = connReq.getSessionId();
+        // 3. tokensNeeded表示建立连接所需令牌数,之后判断连接限流是否开启,默认false
         int tokensNeeded = 1;
         if (connThrottle.isConnectionWeightEnabled()) {
+            // 3.1 如果连接限流开启,则获取建立本次连接所需的令牌数
             if (sessionId == 0) {
                 if (localSessionEnabled) {
                     tokensNeeded = connThrottle.getRequiredTokensForLocal();
@@ -1349,7 +1369,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 tokensNeeded = connThrottle.getRequiredTokensForRenew();
             }
         }
-
+        // 3.2 从令牌桶中获取令牌数,从而判断是否需要限流
         if (!connThrottle.checkLimit(tokensNeeded)) {
             throw new ClientCnxnLimitException();
         }
@@ -1357,6 +1377,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
         ServerMetrics.getMetrics().CONNECTION_REQUEST_COUNT.add(1);
 
+        // 4. 一些校验操作
+        // 4.1 只读请求校验zk服务器类型
         boolean readOnly = false;
         try {
             readOnly = bia.readBool("readOnly");
@@ -1373,6 +1395,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             LOG.info(msg);
             throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.CLIENT_ZXID_AHEAD);
         }
+        // 4.2 校验客户端zxid和当前zk服务器的zxid
         if (connReq.getLastZxidSeen() > zkDb.dataTree.lastProcessedZxid) {
             String msg = "Refusing session request for client "
                          + cnxn.getRemoteSocketAddress()
@@ -1385,6 +1408,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             LOG.info(msg);
             throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.NOT_READ_ONLY_CLIENT);
         }
+        // 5. 获取客户的传递过来的会话超时时间和密码
         int sessionTimeout = connReq.getTimeOut();
         byte[] passwd = connReq.getPasswd();
         int minSessionTimeout = getMinSessionTimeout();
@@ -1395,10 +1419,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (sessionTimeout > maxSessionTimeout) {
             sessionTimeout = maxSessionTimeout;
         }
+        // 5.1 更新与客户端建立的连接中的会话超时时间
         cnxn.setSessionTimeout(sessionTimeout);
         // We don't want to receive any packets until we are sure that the
         // session is setup
+        // 6. 在建立session之前,取消对客户端的读/写简单
         cnxn.disableRecv();
+        // 7. sessionId不存在,首次建立会话创建session并处理请求
         if (sessionId == 0) {
             long id = createSession(cnxn, passwd, sessionTimeout);
             LOG.debug(
@@ -1407,6 +1434,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 Long.toHexString(connReq.getLastZxidSeen()),
                 connReq.getTimeOut(),
                 cnxn.getRemoteSocketAddress());
+        // 8. sessionId存在,关闭旧的连接并重启打开连接
         } else {
             long clientSessionId = connReq.getSessionId();
                 LOG.debug(
@@ -1541,6 +1569,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         }
     }
 
+    /**
+     * 2. 处理客户端的请求
+     * @param cnxn
+     * @param incomingBuffer
+     * @throws IOException
+     */
     public void processPacket(ServerCnxn cnxn, ByteBuffer incomingBuffer) throws IOException {
         // We have the request, now process and setup for next
         InputStream bais = new ByteBufferInputStream(incomingBuffer);

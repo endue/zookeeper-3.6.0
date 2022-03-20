@@ -60,6 +60,9 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
 
     private static final Logger LOG = LoggerFactory.getLogger(RequestThrottler.class);
 
+    /**
+     * 保存客户端提交的命令请求
+     */
     private final LinkedBlockingQueue<Request> submittedRequests = new LinkedBlockingQueue<Request>();
 
     private final ZooKeeperServer zks;
@@ -225,6 +228,10 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
         zks.requestFinished(request);
     }
 
+    /**
+     * 接收客户端请求,保存到这里进行限流
+     * @param request
+     */
     public void submitRequest(Request request) {
         if (stopping) {
             LOG.debug("Shutdown in progress. Request cannot be processed");

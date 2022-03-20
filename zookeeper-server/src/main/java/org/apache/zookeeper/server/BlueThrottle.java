@@ -317,6 +317,7 @@ public class BlueThrottle {
 
     public synchronized boolean checkLimit(int need) {
         // A maxTokens setting of zero disables throttling
+        // maxTokens设置为0将禁用节流
         if (maxTokens == 0) {
             return true;
         }

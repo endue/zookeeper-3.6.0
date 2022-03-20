@@ -72,7 +72,9 @@ public class NIOServerCnxn extends ServerCnxn {
     private ByteBuffer incomingBuffer = lenBuffer;
 
     private final Queue<ByteBuffer> outgoingBuffers = new LinkedBlockingQueue<ByteBuffer>();
-
+    /**
+     * 客户端会话超时时间
+     */
     private int sessionTimeout;
 
     /**
@@ -397,6 +399,7 @@ public class NIOServerCnxn extends ServerCnxn {
      * @throws IOException
      */
     private void readRequest() throws IOException {
+        // 注意这里将客户端对应的NIOServerCnxn传入了进去
         zkServer.processPacket(this, incomingBuffer);
     }
 
