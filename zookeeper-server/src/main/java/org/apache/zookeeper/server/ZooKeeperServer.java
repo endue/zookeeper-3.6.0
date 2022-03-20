@@ -657,25 +657,28 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     public synchronized void startup() {
+        // 1. 开启会话管理器
         if (sessionTracker == null) {
             createSessionTracker();
         }
         startSessionTracker();
+        // 2. 初始化请求处理链
         setupRequestProcessors();
-
+        // 3. 开启请求节流器
         startRequestThrottler();
-
+        // 4. JMX监控
         registerJMX();
-
+        // 5. JVM监控
         startJvmPauseMonitor();
-
+        // 6. zk统计信息
         registerMetrics();
-
+        // 7. 修改状态
         setState(State.RUNNING);
-
+        //
         requestPathMetricsCollector.start();
-
+        //
         localSessionEnabled = sessionTracker.isLocalSessionsEnabled();
+        //
         notifyAll();
     }
 
@@ -1314,6 +1317,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         return connThrottle.getDropChance();
     }
 
+    /**
+     * 处理客户端ConnectRequest
+     * @param cnxn
+     * @param incomingBuffer
+     * @throws IOException
+     * @throws ClientCnxnLimitException
+     */
     @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "the value won't change after startup")
     public void processConnectRequest(ServerCnxn cnxn, ByteBuffer incomingBuffer)
         throws IOException, ClientCnxnLimitException {
