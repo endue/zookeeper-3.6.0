@@ -61,7 +61,7 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
     private static final Logger LOG = LoggerFactory.getLogger(RequestThrottler.class);
 
     /**
-     * 保存客户端提交的命令请求
+     * 保存请求
      */
     private final LinkedBlockingQueue<Request> submittedRequests = new LinkedBlockingQueue<Request>();
 
@@ -82,12 +82,14 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
      * starts stalling.
      *
      * When maxRequests = 0, throttling is disabled.
+     * maxRequests <=0 时限流器失效
      */
     private static volatile int maxRequests = Integer.getInteger("zookeeper.request_throttle_max_requests", 0);
 
     /**
      * The time (in milliseconds) this is the maximum time for which throttler
      * thread may wait to be notified that it may proceed processing a request.
+     * 当前请求数大于等于阈值时,每次循环等待的时间
      */
     private static volatile int stallTime = Integer.getInteger("zookeeper.request_throttle_stall_time", 100);
 
@@ -149,8 +151,10 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
                 }
 
                 // Throttling is disabled when maxRequests = 0
+                // 开启限流器,则进入while循环
                 if (maxRequests > 0) {
                     while (!killed) {
+                        // 丢到过期的request,然后request置为null,从而不会进入下一个processor
                         if (dropStaleRequests && request.isStale()) {
                             // Note: this will close the connection
                             dropRequest(request);
@@ -158,9 +162,13 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
                             request = null;
                             break;
                         }
+                        // 总等待请求数小于阈值,退出while循环
                         if (zks.getInProcess() < maxRequests) {
                             break;
                         }
+                        // 总请求数大于等于阈值,等待.
+                        // a. 一种是到时间自动唤醒
+                        // b. 一种是请求被处理后,由{@link org.apache.zookeeper.server.ZooKeeperServer.decInProcess}方法调用
                         throttleSleep(stallTime);
                     }
                 }
@@ -170,6 +178,7 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
                 }
 
                 // A dropped stale request will be null
+                // 将请求传递给下一个处理器
                 if (request != null) {
                     if (request.isStale()) {
                         ServerMetrics.getMetrics().STALE_REQUESTS.add(1);
@@ -180,6 +189,7 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
         } catch (InterruptedException e) {
             LOG.error("Unexpected interruption", e);
         }
+        // 当zk服务关闭,限流器也会关闭,然后killed设置为true跳出while循环
         int dropped = drainQueue();
         LOG.info("RequestThrottler shutdown. Dropped {} requests", dropped);
     }
@@ -193,6 +203,10 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
         }
     }
 
+    /**
+     * 当处理完一个请求后,会调用这里
+     * {@link ZooKeeperServer#decInProcess()}
+     */
     @SuppressFBWarnings(value = "NN_NAKED_NOTIFY", justification = "state change is in ZooKeeperServer.decInProgress() ")
     public synchronized void throttleWake() {
         this.notify();
@@ -213,6 +227,12 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
         return dropped;
     }
 
+    /**
+     * 将当前请求丢弃,在如下几种情况
+     * 1. stopping为true,提交请求到当前类后,会调用该方法
+     * 2. killed为true,退出while循环,会调用该方法
+     * @param request
+     */
     private void dropRequest(Request request) {
         // Since we're dropping a request on the floor, we must mark the
         // connection as invalid to ensure any future requests from this
@@ -229,7 +249,7 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
     }
 
     /**
-     * 接收客户端请求,保存到这里进行限流
+     * 1. 接收请求保存到submittedRequests
      * @param request
      */
     public void submitRequest(Request request) {
@@ -241,6 +261,10 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
         }
     }
 
+    /**
+     * 获取当前待处理请求的处理
+     * @return
+     */
     public int getInflight() {
         return submittedRequests.size();
     }
