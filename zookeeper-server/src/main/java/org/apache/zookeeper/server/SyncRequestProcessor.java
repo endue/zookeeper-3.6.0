@@ -170,6 +170,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         try {
             // we do this in an attempt to ensure that not all of the servers
             // in the ensemble take a snapshot at the same time
+            // 刷新这两个关乎刷磁盘的参数,避免所有机器同时刷磁盘
             resetSnapshotStats();
             lastFlushTime = Time.currentElapsedTime();
             while (true) {
