@@ -176,6 +176,9 @@ public class JvmPauseMonitor {
 
     }
 
+    /**
+     * 内部启动while循环，每次休眠固定时间，当休眠时间超过指定阈值则进行日志打印。具体可参考当前类注释
+     */
     private class JVMMonitor implements Runnable {
 
         @Override
