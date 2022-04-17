@@ -118,6 +118,7 @@ public class FinalRequestProcessor implements RequestProcessor {
             ZooTrace.logRequest(LOG, traceMask, 'E', request, "");
         }
 
+        // 处理事务请求落到内存目录树中创建对应节点
         ProcessTxnResult rc = zks.processTxn(request);
 
         // ZOOKEEPER-558:

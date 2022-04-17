@@ -42,7 +42,9 @@ import org.slf4j.LoggerFactory;
  * and provides access to the snapshots.
  */
 public class FileSnap implements SnapShot {
-
+    /**
+     * 记录内存目录树快照的文件夹,对应zk配置文件中的dataDir选项
+     */
     File snapDir;
     SnapshotInfo lastSnapshotInfo = null;
     private volatile boolean close = false;

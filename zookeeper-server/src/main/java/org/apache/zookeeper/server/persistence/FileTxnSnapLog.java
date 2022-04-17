@@ -53,11 +53,23 @@ public class FileTxnSnapLog {
 
     //the directory containing the
     //the transaction logs
+    /**
+     * 记录事务请求日志的文件夹
+     */
     final File dataDir;
     //the directory containing the
     //the snapshot directory
+    /**
+     * 记录内存目录树快照的文件夹
+     */
     final File snapDir;
+    /**
+     * 事务请求管理类
+     */
     TxnLog txnLog;
+    /**
+     * 内部目录树管理类
+     */
     SnapShot snapLog;
     private final boolean autoCreateDB;
     private final boolean trustEmptySnapshot;
@@ -104,10 +116,11 @@ public class FileTxnSnapLog {
     }
 
     /**
+     * 初始化事务请求日志和内存目录树快照管理类
      * the constructor which takes the datadir and
      * snapdir.
-     * @param dataDir the transaction directory
-     * @param snapDir the snapshot directory
+     * @param dataDir the transaction directory 配置文件中的dataLogDir
+     * @param snapDir the snapshot directory 配置文件中的dataDir
      */
     public FileTxnSnapLog(File dataDir, File snapDir) throws IOException {
         LOG.debug("Opening datadir:{} snapDir:{}", dataDir, snapDir);
@@ -123,6 +136,7 @@ public class FileTxnSnapLog {
         trustEmptySnapshot = Boolean.getBoolean(ZOOKEEPER_SNAPSHOT_TRUST_EMPTY);
         LOG.info("{} : {}", ZOOKEEPER_SNAPSHOT_TRUST_EMPTY, trustEmptySnapshot);
 
+        // 1. 事务请求日志文件和内存目录树快照文件检查
         if (!this.dataDir.exists()) {
             if (!enableAutocreate) {
                 throw new DatadirException(String.format(
@@ -161,11 +175,13 @@ public class FileTxnSnapLog {
 
         // check content of transaction log and snapshot dirs if they are two different directories
         // See ZOOKEEPER-2967 for more details
+        // 2. 事务请求日志文件和内存目录树快照文件是否配反检查
         if (!this.dataDir.getPath().equals(this.snapDir.getPath())) {
             checkLogDir();
             checkSnapDir();
         }
 
+        // 3. 事务请求日志文件和内存目录树快照文件管理对象创建
         txnLog = new FileTxnLog(this.dataDir);
         snapLog = new FileSnap(this.snapDir);
 
@@ -177,6 +193,10 @@ public class FileTxnSnapLog {
         txnLog.setServerStats(serverStats);
     }
 
+    /**
+     * 校验事务请求日志目录中是否包含内存目录树快照文件
+     * @throws LogDirContentCheckException
+     */
     private void checkLogDir() throws LogDirContentCheckException {
         File[] files = this.dataDir.listFiles(new FilenameFilter() {
             @Override
@@ -190,6 +210,10 @@ public class FileTxnSnapLog {
         }
     }
 
+    /**
+     * 校验内存目录树快照目录中是否包含事务请求日志文件
+     * @throws SnapDirContentCheckException
+     */
     private void checkSnapDir() throws SnapDirContentCheckException {
         File[] files = this.snapDir.listFiles(new FilenameFilter() {
             @Override

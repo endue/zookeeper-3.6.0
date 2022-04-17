@@ -134,7 +134,7 @@ public class ZooKeeperServerMain {
         LOG.info("Starting server");
         FileTxnSnapLog txnLog = null;
         try {
-            // 1. 监控相关?
+            // 1. zk服务各项指标?
             try {
                 metricsProvider = MetricsProviderBootstrap.startMetricsProvider(
                     config.getMetricsProviderClassName(),
@@ -149,7 +149,7 @@ public class ZooKeeperServerMain {
             // create a file logger url from the command line args
             // 2. 创建数据日志和数据目录文件夹
             txnLog = new FileTxnSnapLog(config.dataLogDir, config.dataDir);
-            // 3. JVM监控相关?
+            // 3. JVM GC监控
             JvmPauseMonitor jvmPauseMonitor = null;
             if (config.jvmPauseMonitorToRun) {
                 jvmPauseMonitor = new JvmPauseMonitor(config);
@@ -188,6 +188,7 @@ public class ZooKeeperServerMain {
                 secureCnxnFactory.startup(zkServer, needStartZKServer);
             }
 
+            // 9. 启动容器管理器
             containerManager = new ContainerManager(
                 zkServer.getZKDatabase(),
                 zkServer.firstProcessor,

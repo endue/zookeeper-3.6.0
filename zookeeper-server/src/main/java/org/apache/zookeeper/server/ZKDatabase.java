@@ -71,11 +71,15 @@ public class ZKDatabase {
     private static final Logger LOG = LoggerFactory.getLogger(ZKDatabase.class);
 
     /**
+     * 内存数据库，在构造方法中被初始化
      * make sure on a clear you take care of
      * all these members.
      */
     protected DataTree dataTree;
     protected ConcurrentHashMap<Long, Integer> sessionsWithTimeouts;
+    /**
+     * 事务请求日志和内存目录树的辅助类
+     */
     protected FileTxnSnapLog snapLog;
     protected long minCommittedLog, maxCommittedLog;
 
@@ -95,11 +99,14 @@ public class ZKDatabase {
     private volatile boolean initialized = false;
 
     /**
+     * 记录事务请求日志文件当前记录的事务请求个数
+     * 当创建新的事务请求日志文件时，该值被重置为0
      * Number of txn since last snapshot;
      */
     private AtomicInteger txnCount = new AtomicInteger(0);
 
     /**
+     * 启动zk服务时,zk会调用当前方法,初始化内存数据库
      * the filetxnsnaplog that this zk database
      * maps to. There is a one to one relationship
      * between a filetxnsnaplog and zkdatabase.
@@ -471,6 +478,7 @@ public class ZKDatabase {
     }
 
     /**
+     * 将事务请求落地到内存目录树中创建对应节点
      * the process txn on the data and perform digest comparision.
      * @param hdr the txnheader for the txn
      * @param txn the transaction that needs to be processed
@@ -632,6 +640,7 @@ public class ZKDatabase {
     }
 
     /**
+     * 将事务请求记录到事务请求日志文件中,是否刷新到磁盘由操作系统决定
      * append to the underlying transaction log
      * @param si the request to append
      * @return true if the append was succesfull and false if not
@@ -650,6 +659,7 @@ public class ZKDatabase {
     }
 
     /**
+     * 触发事务日志文件刷新到磁盘
      * commit to the underlying transaction log
      * @throws IOException
      */
@@ -736,6 +746,7 @@ public class ZKDatabase {
     }
 
     /**
+     * 获取自上次快照以来的txn个数
      * Get the number of txn since last snapshot
      */
     public int getTxnCount() {
@@ -743,6 +754,7 @@ public class ZKDatabase {
     }
 
     /**
+     * 获取上次快照后txn的大小
      * Get the size of txn since last snapshot
      */
     public long getTxnSize() {

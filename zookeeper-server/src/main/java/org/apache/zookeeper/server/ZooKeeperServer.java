@@ -694,6 +694,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
     }
 
+    /**
+     * 初始化顺序 PrepRequestProcessor -> SyncRequestProcessor -> FinalRequestProcessor
+     */
     protected void setupRequestProcessors() {
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
         RequestProcessor syncProcessor = new SyncRequestProcessor(this, finalProcessor);
@@ -1743,7 +1746,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     // entry point for FinalRequestProcessor.java
-    public ProcessTxnResult processTxn(Request request) {
+    public ProcessTxnResult  processTxn(Request request) {
         TxnHeader hdr = request.getHdr();
         processTxnForSessionEvents(request, hdr, request.getTxn());
 

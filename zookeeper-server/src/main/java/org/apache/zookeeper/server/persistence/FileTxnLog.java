@@ -121,6 +121,7 @@ public class FileTxnLog implements TxnLog, Closeable {
     private static final String txnLogSizeLimitSetting = "zookeeper.txnLogSizeLimitInKb";
 
     /**
+     * 记录事务请求日志的文件最大大小
      * The actual txnlog size limit in bytes.
      */
     private static long txnLogSizeLimit = -1;
@@ -145,16 +146,31 @@ public class FileTxnLog implements TxnLog, Closeable {
         }
     }
 
+    /**
+     * 记录最后处理的事务请求的zxid
+     */
     long lastZxidSeen;
-    volatile BufferedOutputStream logStream = null;
-    volatile OutputArchive oa;
-    volatile FileOutputStream fos = null;
 
+    /**
+     * 1. 记录事务请求日志的文件夹,对应zk配置文件中的dataLogDir选项
+     */
     File logDir;
     private final boolean forceSync = !System.getProperty("zookeeper.forceSync", "yes").equals("no");
     long dbId;
-    private final Queue<FileOutputStream> streamsToFlush = new ArrayDeque<>();
+
+    /**
+     * 2. 记录事务请求日志的文件以及相关包装类(从下到上层层包装)
+     */
     File logFileWrite = null;
+    volatile FileOutputStream fos = null;
+    volatile BufferedOutputStream logStream = null;
+    volatile OutputArchive oa;
+
+    /**
+     * 3. 记录需要刷入磁盘的事务请求日志
+     */
+    private final Queue<FileOutputStream> streamsToFlush = new ArrayDeque<>();
+
     private FilePadding filePadding = new FilePadding();
 
     private ServerStats serverStats;
@@ -257,6 +273,7 @@ public class FileTxnLog implements TxnLog, Closeable {
     }
 
     /**
+     * 记录事物请求到事务日志
      * append an entry to the transaction log
      * @param hdr the header of the transaction
      * @param txn the transaction part of the entry
@@ -266,8 +283,18 @@ public class FileTxnLog implements TxnLog, Closeable {
               return append(hdr, txn, null);
     }
 
+    /**
+     * 记录事物请求到事务日志
+     * @param hdr the transaction header
+     * @param txn
+     * @param digest transaction digest
+     * returns true iff something appended, otw false
+     * @return
+     * @throws IOException
+     */
     @Override
     public synchronized boolean append(TxnHeader hdr, Record txn, TxnDigest digest) throws IOException {
+        // 1. 判断事务请求是否有效
         if (hdr == null) {
             return false;
         }
@@ -280,6 +307,7 @@ public class FileTxnLog implements TxnLog, Closeable {
         } else {
             lastZxidSeen = hdr.getZxid();
         }
+        // 2. logStream为空说明当前没有活跃的事务日志文件，创建一个并写入头信息
         if (logStream == null) {
             LOG.info("Creating new log file: {}", Util.makeLogName(hdr.getZxid()));
 
@@ -294,7 +322,9 @@ public class FileTxnLog implements TxnLog, Closeable {
             filePadding.setCurrentSize(fos.getChannel().position());
             streamsToFlush.add(fos);
         }
+        // 3.
         filePadding.padFile(fos.getChannel());
+        // 4. 写入事务请求
         byte[] buf = Util.marshallTxnEntry(hdr, txn, digest);
         if (buf == null || buf.length == 0) {
             throw new IOException("Faulty serialization for header " + "and txn");
@@ -421,6 +451,7 @@ public class FileTxnLog implements TxnLog, Closeable {
         }
 
         // Roll the log file if we exceed the size limit
+        // 如果事务请求日志文件存在大小限制则判断是否达到阈值，如果达到则将当前事务请求日志文件刷磁盘
         if (txnLogSizeLimit > 0) {
             long logSize = getCurrentLogSize();
 
