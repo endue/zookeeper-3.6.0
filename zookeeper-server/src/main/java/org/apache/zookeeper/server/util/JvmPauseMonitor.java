@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * JVM暂定监控器，作用就是监听JVM垃圾回收，超过指定时间则打印告警日期
  * This code is originally from hadoop-common, see:
  * https://github.com/apache/hadoop/blob/trunk/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/util/JvmPauseMonitor.java
  *
