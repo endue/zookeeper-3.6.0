@@ -34,15 +34,26 @@ import org.apache.zookeeper.common.Time;
  */
 public class ExpiryQueue<E> {
 
+    /**
+     * 过期数据与对应的过期时间戳
+     */
     private final ConcurrentHashMap<E, Long> elemMap = new ConcurrentHashMap<E, Long>();
     /**
      * The maximum number of buckets is equal to max timeout/expirationInterval,
      * so the expirationInterval should not be too small compared to the
      * max timeout that this expiry queue needs to maintain.
+     * 过期时间桶
+     * key是过期时间戳，value是过期数据集
      */
     private final ConcurrentHashMap<Long, Set<E>> expiryMap = new ConcurrentHashMap<Long, Set<E>>();
 
+    /**
+     * 过期时间戳，隔一段时间更新一次
+     */
     private final AtomicLong nextExpirationTime = new AtomicLong();
+    /**
+     * 过期时间戳更新间隔，默认10000ms
+     */
     private final int expirationInterval;
 
     public ExpiryQueue(int expirationInterval) {
@@ -107,6 +118,7 @@ public class ExpiryQueue<E> {
 
         // Map the elem to the new expiry time. If a different previous
         // mapping was present, clean up the previous expiry bucket.
+        // 重新放置到新的过期时间桶中并删除旧时间桶中对应的数据
         prevExpiryTime = elemMap.put(elem, newExpiryTime);
         if (prevExpiryTime != null && !newExpiryTime.equals(prevExpiryTime)) {
             Set<E> prevSet = expiryMap.get(prevExpiryTime);
