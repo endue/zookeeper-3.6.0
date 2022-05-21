@@ -38,10 +38,19 @@ import org.apache.zookeeper.server.util.ConfigUtils;
  */
 public final class ConnectStringParser {
 
+    /**
+     * zk服务默认端口号
+     */
     private static final int DEFAULT_PORT = 2181;
 
+    /**
+     * 客户端操作的根路径
+     */
     private final String chrootPath;
 
+    /**
+     * zk服务器的地址集合
+     */
     private final ArrayList<InetSocketAddress> serverAddresses = new ArrayList<InetSocketAddress>();
 
     /**
@@ -49,6 +58,14 @@ public final class ConnectStringParser {
      * with support for IPv6 literals
      * @throws IllegalArgumentException
      *             for an invalid chroot path.
+     *
+     *  ZooKeeper zk1 = new ZooKeeper("192.168.6.133", 50000, new Watcher() {
+     *     @Override
+     *     public void process(WatchedEvent watchedEvent) {
+     *         System.out.println("事件" + watchedEvent.getType());
+     *     }
+     *  });
+     *  connectString就是"192.168.6.133"
      */
     public ConnectStringParser(String connectString) {
         // parse out chroot, if any
@@ -67,6 +84,7 @@ public final class ConnectStringParser {
             this.chrootPath = null;
         }
 
+        // 多个zk服务地址英文逗号分割，然后解析获取每个zk服务的host和port
         List<String> hostsList = split(connectString, ",");
         for (String host : hostsList) {
             int port = DEFAULT_PORT;
