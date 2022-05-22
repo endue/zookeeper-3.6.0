@@ -166,7 +166,7 @@ public class ZooKeeperServerMain {
             zkServer.registerServerShutdownHandler(new ZooKeeperServerShutdownHandler(shutdownLatch));
 
             // Start Admin server
-            // 7. todo 这里创建这个干什么用?
+            // 7. 命令服务，参考https://zookeeper.apache.org/doc/r3.5.0-alpha/zookeeperAdmin.html#sc_adminserver，内部基于jetty服务接收get请求执行不同命令输出相关信息
             adminServer = AdminServerFactory.createAdminServer();
             adminServer.setZooKeeperServer(zkServer);
             adminServer.start();

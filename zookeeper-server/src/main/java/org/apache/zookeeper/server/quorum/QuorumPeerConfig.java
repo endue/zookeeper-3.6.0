@@ -64,7 +64,7 @@ public class QuorumPeerConfig {
     private static final Logger LOG = LoggerFactory.getLogger(QuorumPeerConfig.class);
     private static final int UNSET_SERVERID = -1;
     public static final String nextDynamicConfigFileSuffix = ".dynamic.next";
-    //
+    // 是否单机模式
     private static boolean standaloneEnabled = true;
     /**
      * 动态重新配置特性默认禁用,修改reconfigEnabled显式地打开

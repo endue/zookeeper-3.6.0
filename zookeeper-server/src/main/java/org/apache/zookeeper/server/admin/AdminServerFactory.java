@@ -36,6 +36,9 @@ public class AdminServerFactory {
      * to create a JettyAdminServer, rather than referencing the class directly,
      * so that it's ok to omit Jetty from the classpath if a user doesn't wish
      * to pull in Jetty with ZooKeeper.
+     * 两种方式禁用adminServer
+     * 1. zookeeper.admin.enableServer = false
+     * 2. Removing Jetty from the classpath
      */
     public static AdminServer createAdminServer() {
         if (!"false".equals(System.getProperty("zookeeper.admin.enableServer"))) {
@@ -58,6 +61,7 @@ public class AdminServerFactory {
                 LOG.warn("Unable to load jetty, not starting JettyAdminServer", e);
             }
         }
+        // 不启用JettyAdminServer则返回DummyAdminServer
         return new DummyAdminServer();
     }
 
