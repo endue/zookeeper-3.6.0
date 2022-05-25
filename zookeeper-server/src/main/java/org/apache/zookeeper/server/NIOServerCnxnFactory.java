@@ -291,6 +291,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 // 将连接的所有客户端轮询给SelectorThread
                 // Round-robin assign this connection to a selector thread
                 if (!selectorIterator.hasNext()) {
+                    // 轮询结束后，从头开始继续轮询
                     selectorIterator = selectorThreads.iterator();
                 }
                 SelectorThread selectorThread = selectorIterator.next();

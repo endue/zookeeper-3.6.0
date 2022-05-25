@@ -85,6 +85,12 @@ public class RequestPathMetricsCollector {
     public static final String PATH_STATS_ENABLED = "zookeeper.pathStats.enabled";
     private static final String PATH_SEPERATOR = "/";
 
+    /**
+     * key是操作code
+     * @see ( ZooDefs.OpCode)
+     *
+     * value是操作统计队列
+     */
     private final Map<String, PathStatsQueue> immutableRequestsMap;
     private final Random sampler;
     private final ScheduledThreadPoolExecutor scheduledExecutor;

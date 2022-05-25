@@ -666,7 +666,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         setupRequestProcessors();
         // 3. 开启请求节流器
         startRequestThrottler();
-        // 4. JMX监控
+        // 4. 注册JMX
         registerJMX();
         // 5. JVM监控
         startJvmPauseMonitor();
@@ -674,9 +674,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         registerMetrics();
         // 7. 修改状态
         setState(State.RUNNING);
-        //
+        // 8. 启动路径统计任务
         requestPathMetricsCollector.start();
-        //
+        // session追踪模式，和集群模式有关，也仅限leader
         localSessionEnabled = sessionTracker.isLocalSessionsEnabled();
         //
         notifyAll();
