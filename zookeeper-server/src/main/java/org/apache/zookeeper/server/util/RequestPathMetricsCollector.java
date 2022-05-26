@@ -86,7 +86,7 @@ public class RequestPathMetricsCollector {
     private static final String PATH_SEPERATOR = "/";
 
     /**
-     * key是操作code
+     * key是OpCode
      * @see ( ZooDefs.OpCode)
      *
      * value是操作统计队列
@@ -164,6 +164,9 @@ public class RequestPathMetricsCollector {
     static String trimPathDepth(String path, int maxDepth) {
         int count = 0;
         StringBuilder sb = new StringBuilder();
+        // 以/分割path,最多分割maxDepth，最后返回分割后的paht
+        // 比如path=/a/b/c/e/d/f/g/h
+        // 最终结果/a/b/c/e/d/f
         StringTokenizer pathTokenizer = new StringTokenizer(path, PATH_SEPERATOR);
         while (pathTokenizer.hasMoreElements() && count++ < maxDepth) {
             sb.append(PATH_SEPERATOR);
@@ -202,6 +205,7 @@ public class RequestPathMetricsCollector {
     }
 
     /**
+     * 处理OpCode，将对应的OpCode和路径加入到相应队列中
      * The public interface of the buffer. FinalRequestHandler will call into this for
      * each request that has a path and this needs to be fast. we sample the path so that
      * we don't have to store too many paths in memory
@@ -211,6 +215,7 @@ public class RequestPathMetricsCollector {
             return;
         }
         if (sampler.nextFloat() <= REQUEST_PREPROCESS_SAMPLE_RATE) {
+            // 获取OpCode对应的队列
             PathStatsQueue pathStatsQueue = immutableRequestsMap.get(Request.op2String(type));
             if (pathStatsQueue != null) {
                 pathStatsQueue.registerRequest(path);
@@ -220,6 +225,12 @@ public class RequestPathMetricsCollector {
         }
     }
 
+    /**
+     * 根据指定的深度，打印出某个OpCode的所有操作路径统计信息
+     * @param pwriter
+     * @param requestTypeName
+     * @param queryMaxDepth
+     */
     public void dumpTopRequestPath(PrintWriter pwriter, String requestTypeName, int queryMaxDepth) {
         if (queryMaxDepth < 1) {
             return;
@@ -237,16 +248,31 @@ public class RequestPathMetricsCollector {
         logTopPaths(combinedMap, entry -> pwriter.println(entry.getKey() + " : " + entry.getValue()));
     }
 
+    /**
+     * 打印所有的非写操作路径统计信息
+     * @param pwriter
+     * @param queryMaxDepth
+     */
     public void dumpTopReadPaths(PrintWriter pwriter, int queryMaxDepth) {
         pwriter.println("The top read requests are");
         dumpTopAggregatedPaths(pwriter, queryMaxDepth, queue -> !queue.isWriteOperation);
     }
 
+    /**
+     * 打印所有的写操作路径统计信息
+     * @param pwriter
+     * @param queryMaxDepth
+     */
     public void dumpTopWritePaths(PrintWriter pwriter, int queryMaxDepth) {
         pwriter.println("The top write requests are");
         dumpTopAggregatedPaths(pwriter, queryMaxDepth, queue -> queue.isWriteOperation);
     }
 
+    /**
+     * 打印所有的操作路径统计信息
+     * @param pwriter
+     * @param queryMaxDepth
+     */
     public void dumpTopPaths(PrintWriter pwriter, int queryMaxDepth) {
         pwriter.println("The top requests are");
         dumpTopAggregatedPaths(pwriter, queryMaxDepth, queue -> true);
@@ -264,6 +290,13 @@ public class RequestPathMetricsCollector {
         logTopPaths(combinedMap, entry -> pwriter.println(entry.getKey() + " : " + entry.getValue()));
     }
 
+    /**
+     * 将immutableRequestsMap中符合predicate的所有PathStatsQueue取出
+     * 然后遍历将所有的路径和对应的统计数量再记录到新的集合combinedMap中
+     * @param queryMaxDepth
+     * @param predicate
+     * @return
+     */
     Map<String, Integer> aggregatePaths(int queryMaxDepth, Predicate<PathStatsQueue> predicate) {
         final Map<String, Integer> combinedMap = new HashMap<>(REQUEST_PREPROCESS_TOPPATH_MAX);
         final int maxDepth = Math.min(queryMaxDepth, REQUEST_PREPROCESS_PATH_DEPTH);
@@ -305,6 +338,7 @@ public class RequestPathMetricsCollector {
             if (!enabled) {
                 return;
             }
+            // 插入队尾
             currentSlot.get().offer(path);
         }
 
@@ -363,20 +397,28 @@ public class RequestPathMetricsCollector {
                 return;
             }
             // Staggered start and then run every 15 seconds no matter what
+            // 获取首次执行的延迟时间
             int delay = sampler.nextInt(REQUEST_STATS_SLOT_DURATION);
             // We need to use fixed Delay as the fixed rate will start the next one right
             // after the previous one finishes if it runs overtime instead of overlapping it.
+            // 定时任务线程池
             scheduledExecutor.scheduleWithFixedDelay(() -> {
                 // Generate new slot so new requests will go here.
+                // 重置OpCode对应的队列
                 ConcurrentLinkedQueue<String> tobeProcessedSlot = currentSlot.getAndSet(new ConcurrentLinkedQueue<>());
                 try {
                     // pre process the last slot and queue it up, only one thread scheduled modified
                     // this but we can mess up the collect part so we put a lock in the test.
+                    // 处理tobeProcessedSlot中保存的路径,处理路径最大深度为REQUEST_PREPROCESS_PATH_DEPTH
+                    // 然后统计各个路径出现的次数
                     Map<String, Integer> latestSlot = mapReducePaths(REQUEST_PREPROCESS_PATH_DEPTH, tobeProcessedSlot);
                     synchronized (accurateMode ? requestPathStats : new Object()) {
+                        // 集合已满
                         if (requestPathStats.remainingCapacity() <= 0) {
+                            // 从头部移除一个元素
                             requestPathStats.poll();
                         }
+                        // 将统计数据插入尾部
                         if (!requestPathStats.offer(latestSlot)) {
                             LOG.error("Failed to insert the new request path stats for {}", requestTypeName);
                         }
