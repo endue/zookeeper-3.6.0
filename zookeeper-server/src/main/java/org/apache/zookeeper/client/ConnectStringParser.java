@@ -69,6 +69,8 @@ public final class ConnectStringParser {
      */
     public ConnectStringParser(String connectString) {
         // parse out chroot, if any
+        // 截取客户端操作的根路径,如果connectString是"192.168.6.133/name/a/b/c"
+        // 最终的chrootPath就是"/name/a/b/c"
         int off = connectString.indexOf('/');
         if (off >= 0) {
             String chrootPath = connectString.substring(off);
@@ -85,6 +87,7 @@ public final class ConnectStringParser {
         }
 
         // 多个zk服务地址英文逗号分割，然后解析获取每个zk服务的host和port
+        // connectString就是"192.168.6.133,192.168.6.134,192.168.6.135"
         List<String> hostsList = split(connectString, ",");
         for (String host : hostsList) {
             int port = DEFAULT_PORT;

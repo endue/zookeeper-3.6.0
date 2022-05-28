@@ -435,14 +435,16 @@ public class ClientCnxn {
         this.sessionTimeout = sessionTimeout;
         this.hostProvider = hostProvider;
         this.chrootPath = chrootPath;
-
+        // 连接超时时间:会话超时时间 / 服务端个数
         connectTimeout = sessionTimeout / hostProvider.size();
+        // 读操作超时时间: 会话超时时间的2 / 3
         readTimeout = sessionTimeout * 2 / 3;
         readOnly = canBeReadOnly;
 
-        sendThread = new SendThread(clientCnxnSocket);
+        sendThread = new SendThread(clientCnxnSocket);// state被修改为States.CONNECTING;
         eventThread = new EventThread();
         this.clientConfig = zooKeeper.getClientConfig();
+        // 请求超时间，默认0
         initRequestTimeout();
     }
 

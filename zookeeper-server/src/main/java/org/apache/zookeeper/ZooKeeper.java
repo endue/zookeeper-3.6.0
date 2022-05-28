@@ -290,6 +290,9 @@ public class ZooKeeper implements AutoCloseable {
             this.disableAutoWatchReset = disableAutoWatchReset;
         }
 
+        /**
+         * 默认Watcher，在创建Zookeeper时传入
+         */
         protected volatile Watcher defaultWatcher;
 
         private void addTo(Set<Watcher> from, Set<Watcher> to) {
@@ -1017,7 +1020,7 @@ public class ZooKeeper implements AutoCloseable {
         ConnectStringParser connectStringParser = new ConnectStringParser(connectString);
         hostProvider = aHostProvider;
 
-        cnxn = createConnection(
+        cnxn = createConnection(// state被修改为States.CONNECTING;
             connectStringParser.getChrootPath(),
             hostProvider,
             sessionTimeout,
