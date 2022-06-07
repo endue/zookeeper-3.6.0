@@ -188,7 +188,7 @@ public class ZooKeeperServerMain {
                 secureCnxnFactory.startup(zkServer, needStartZKServer);
             }
 
-            // 9. 启动容器管理器
+            // 9. 启动container节点管理器
             containerManager = new ContainerManager(
                 zkServer.getZKDatabase(),
                 zkServer.firstProcessor,

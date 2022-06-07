@@ -38,14 +38,24 @@ import org.slf4j.LoggerFactory;
  * checks container nodes that have a cversion &gt; 0 and have no children. A
  * delete is attempted on the node. The result of the delete is unimportant.
  * If the proposal fails or the container node is not empty there's no harm.
+ * 删除内存目录树中的container节点
  */
 public class ContainerManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(ContainerManager.class);
     private final ZKDatabase zkDb;
     private final RequestProcessor requestProcessor;
+    /**
+     * 检查间隔，默认1000ms
+     */
     private final int checkIntervalMs;
+    /**
+     * 每秒中删除container节点的最大个数
+     */
     private final int maxPerMinute;
+    /**
+     * container最大未使用时间
+     */
     private final long maxNeverUsedIntervalMs;
     private final Timer timer;
     private final AtomicReference<TimerTask> task = new AtomicReference<TimerTask>(null);
@@ -124,6 +134,7 @@ public class ContainerManager {
      * Manually check the containers. Not normally used directly
      */
     public void checkContainers() throws InterruptedException {
+        // 计算平均删除一个container节点需要的时间
         long minIntervalMs = getMinIntervalMs();
         for (String containerPath : getCandidates()) {
             long startMs = Time.currentElapsedTime();
@@ -139,6 +150,7 @@ public class ContainerManager {
 
             long elapsedMs = Time.currentElapsedTime() - startMs;
             long waitMs = minIntervalMs - elapsedMs;
+            // 删除当前container节点耗时小于预计时间，则等待，因为规定了每秒删除的阈值
             if (waitMs > 0) {
                 Thread.sleep(waitMs);
             }
