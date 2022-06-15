@@ -112,7 +112,7 @@ public class ZooKeeperServerMain {
         } catch (JMException e) {
             LOG.warn("Unable to register log4j JMX control", e);
         }
-
+        // 创建单机版配置文件类
         ServerConfig config = new ServerConfig();
         if (args.length == 1) {
             config.parse(args[0]);
@@ -197,6 +197,8 @@ public class ZooKeeperServerMain {
                 Long.getLong("znode.container.maxNeverUsedIntervalMs", 0)
             );
             containerManager.start();
+
+            // 10. 服务启动关停日志
             ZKAuditProvider.addZKStartStopAuditLog();
 
             // Watch status of ZooKeeper server. It will do a graceful shutdown

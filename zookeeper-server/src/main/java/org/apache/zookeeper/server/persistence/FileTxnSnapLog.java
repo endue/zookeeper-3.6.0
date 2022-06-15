@@ -124,7 +124,7 @@ public class FileTxnSnapLog {
      */
     public FileTxnSnapLog(File dataDir, File snapDir) throws IOException {
         LOG.debug("Opening datadir:{} snapDir:{}", dataDir, snapDir);
-
+        // 1. 创建请求日志和事物目录快照File对象
         this.dataDir = new File(dataDir, version + VERSION);
         this.snapDir = new File(snapDir, version + VERSION);
 
@@ -136,7 +136,7 @@ public class FileTxnSnapLog {
         trustEmptySnapshot = Boolean.getBoolean(ZOOKEEPER_SNAPSHOT_TRUST_EMPTY);
         LOG.info("{} : {}", ZOOKEEPER_SNAPSHOT_TRUST_EMPTY, trustEmptySnapshot);
 
-        // 1. 事务请求日志文件和内存目录树快照文件检查
+        // 2. 事务请求日志文件和内存目录树快照文件检查
         if (!this.dataDir.exists()) {
             if (!enableAutocreate) {
                 throw new DatadirException(String.format(
@@ -145,7 +145,7 @@ public class FileTxnSnapLog {
                     this.dataDir,
                     ZOOKEEPER_DATADIR_AUTOCREATE));
             }
-
+            // 在dataDir目录下创建version + VERSION文件夹
             if (!this.dataDir.mkdirs() && !this.dataDir.exists()) {
                 throw new DatadirException("Unable to create data directory " + this.dataDir);
             }
@@ -164,7 +164,7 @@ public class FileTxnSnapLog {
                     this.snapDir,
                     ZOOKEEPER_DATADIR_AUTOCREATE));
             }
-
+            // 在snapDir目录下创建version + VERSION文件夹
             if (!this.snapDir.mkdirs() && !this.snapDir.exists()) {
                 throw new DatadirException("Unable to create snap directory " + this.snapDir);
             }
@@ -175,13 +175,13 @@ public class FileTxnSnapLog {
 
         // check content of transaction log and snapshot dirs if they are two different directories
         // See ZOOKEEPER-2967 for more details
-        // 2. 事务请求日志文件和内存目录树快照文件是否配反检查
+        // 3. 事务请求日志文件和内存目录树快照文件是否配反了检查
         if (!this.dataDir.getPath().equals(this.snapDir.getPath())) {
             checkLogDir();
             checkSnapDir();
         }
 
-        // 3. 事务请求日志文件和内存目录树快照文件管理对象创建
+        // 4. 事务请求日志文件和内存目录树快照文件管理对象创建
         txnLog = new FileTxnLog(this.dataDir);
         snapLog = new FileSnap(this.snapDir);
 
