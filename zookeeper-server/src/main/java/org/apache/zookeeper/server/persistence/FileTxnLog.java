@@ -121,7 +121,7 @@ public class FileTxnLog implements TxnLog, Closeable {
     private static final String txnLogSizeLimitSetting = "zookeeper.txnLogSizeLimitInKb";
 
     /**
-     * 记录事务请求日志的文件最大大小
+     * 记录事务请求日志文件的阈值，达到该值则创建新的
      * The actual txnlog size limit in bytes.
      */
     private static long txnLogSizeLimit = -1;
@@ -180,6 +180,7 @@ public class FileTxnLog implements TxnLog, Closeable {
     /**
      * A running total of all complete log files
      * This does not include the current file being written to
+     * 计算当前所有完整日志文件的大小总和，不包括当前活跃的文件
      */
     private long prevLogsRunningTotal;
 
@@ -311,18 +312,22 @@ public class FileTxnLog implements TxnLog, Closeable {
         if (logStream == null) {
             LOG.info("Creating new log file: {}", Util.makeLogName(hdr.getZxid()));
 
+            // 2.1 创建获取的事务日志文件，文件名为：log.zxid
             logFileWrite = new File(logDir, Util.makeLogName(hdr.getZxid()));
             fos = new FileOutputStream(logFileWrite);
             logStream = new BufferedOutputStream(fos);
             oa = BinaryOutputArchive.getArchive(logStream);
+            // 2.2 写入文件头并刷磁盘
             FileHeader fhdr = new FileHeader(TXNLOG_MAGIC, VERSION, dbId);
             fhdr.serialize(oa, "fileheader");
             // Make sure that the magic number is written before padding.
             logStream.flush();
+            // 2.3 记录当前事务日志文件的大小
             filePadding.setCurrentSize(fos.getChannel().position());
+            // 2.4 记录当前事务日志文件到队列中,标记为待刷入磁盘
             streamsToFlush.add(fos);
         }
-        // 3.
+        // 3. 判断当前事务日志文件是否需要触发预先分配空间
         filePadding.padFile(fos.getChannel());
         // 4. 写入事务请求
         byte[] buf = Util.marshallTxnEntry(hdr, txn, digest);
@@ -418,15 +423,19 @@ public class FileTxnLog implements TxnLog, Closeable {
      * disk
      */
     public synchronized void commit() throws IOException {
+        // 1. 将当前活跃的事务日志文件刷入磁盘
         if (logStream != null) {
             logStream.flush();
         }
+        // 2. 获取所有保存的事务日志文件，包括完整的和正在写入的
         for (FileOutputStream log : streamsToFlush) {
+            // log是FileOutputStream，该方法时空实现
             log.flush();
             if (forceSync) {
                 long startSyncNS = System.nanoTime();
 
                 FileChannel channel = log.getChannel();
+                // false只将文件数据写入磁盘，true同时还将文件元数据(权限信息啥的)写入磁盘
                 channel.force(false);
 
                 syncElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startSyncNS);
@@ -446,12 +455,14 @@ public class FileTxnLog implements TxnLog, Closeable {
                 ServerMetrics.getMetrics().FSYNC_TIME.add(syncElapsedMS);
             }
         }
+        // 3.关闭FileChannel
         while (streamsToFlush.size() > 1) {
             streamsToFlush.poll().close();
         }
 
         // Roll the log file if we exceed the size limit
-        // 如果事务请求日志文件存在大小限制则判断是否达到阈值，如果达到则将当前事务请求日志文件刷磁盘
+        // 4. 如果事务请求日志文件存在大小限制则判断当前活跃事务日志文件是否达到阈值，
+        // 如果达到则将当前事务请求日志文件刷磁盘，并丢弃引用，方便后续请求到达后创建新的日志文件
         if (txnLogSizeLimit > 0) {
             long logSize = getCurrentLogSize();
 
