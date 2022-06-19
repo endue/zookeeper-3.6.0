@@ -288,18 +288,38 @@ public class DataTree {
 
         /* Rather than fight it, let root have an alias */
         nodes.put("", root);
+        /**
+         *  --/
+         */
         nodes.putWithoutDigest(rootZookeeper, root);
 
         /** add the proc node and quota node */
+        /**
+         *   --/
+         *   ----zookeeper"
+         */
         root.addChild(procChildZookeeper);
         nodes.put(procZookeeper, procDataNode);
 
+        /**
+         *  --/
+         *  ----zookeeper
+         *  ------quota
+         */
         procDataNode.addChild(quotaChildZookeeper);
         nodes.put(quotaZookeeper, quotaDataNode);
 
+        /**
+         *  --/
+         *  ----zookeeper
+         *  ------config
+         *  ------quota
+         */
         addConfigNode();
 
+        // 记录当前所有节点大小
         nodeDataSize.set(approximateDataSize());
+        // 创建事件管理组件
         try {
             dataWatches = WatchManagerFactory.createWatchManager();
             childWatches = WatchManagerFactory.createWatchManager();
@@ -381,6 +401,7 @@ public class DataTree {
      *            the diff to be added to the count
      */
     public void updateCountBytes(String lastPrefix, long bytesDiff, int countDiff) {
+        // "/zookeeper/quota" + lastPrefix + "/" + "zookeeper_stats"
         String statNode = Quotas.statPath(lastPrefix);
         DataNode node = nodes.get(statNode);
 
@@ -391,12 +412,18 @@ public class DataTree {
             return;
         }
         synchronized (node) {
+            // 1 获取当前节点已用多少
             updatedStat = new StatsTrack(new String(node.data));
+            // 2 加上本次操作的大小
             updatedStat.setCount(updatedStat.getCount() + countDiff);
             updatedStat.setBytes(updatedStat.getBytes() + bytesDiff);
+            // countStr + "=" + count + "," + byteStr + "=" + bytes
+            // 3 更新已用值
             node.data = updatedStat.toString().getBytes();
         }
         // now check if the counts match the quota
+        // "/zookeeper/quota" + lastPrefix + "/" + "zookeeper_limits"
+        // 1 获取节点的配置信息
         String quotaNode = Quotas.quotaPath(lastPrefix);
         node = nodes.get(quotaNode);
         StatsTrack thisStats = null;
@@ -408,6 +435,7 @@ public class DataTree {
         synchronized (node) {
             thisStats = new StatsTrack(new String(node.data));
         }
+        // 2 比较大小，打印告警日志
         if (thisStats.getCount() > -1 && (thisStats.getCount() < updatedStat.getCount())) {
             LOG.warn(
                 "Quota exceeded: {} count={} limit={}",
@@ -468,11 +496,14 @@ public class DataTree {
         int lastSlash = path.lastIndexOf('/');
         String parentName = path.substring(0, lastSlash);
         String childName = path.substring(lastSlash + 1);
+        // 1 生成节点stat
         StatPersisted stat = createStat(zxid, time, ephemeralOwner);
+        // 2 校验父节点
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
             throw new KeeperException.NoNodeException();
         }
+        // 3 锁住父节点，保证只有一个线程在处理
         synchronized (parent) {
             // Add the ACL to ACL cache first, to avoid the ACL not being
             // created race condition during fuzzy snapshot sync.
@@ -487,12 +518,15 @@ public class DataTree {
             // we did for the global sessions.
             Long longval = aclCache.convertAcls(acl);
 
+            // 4 校验节点是否已存在
             Set<String> children = parent.getChildren();
             if (children.contains(childName)) {
                 throw new KeeperException.NodeExistsException();
             }
 
+            // 5 从内存目录树摘要中清空parentName路径的摘要
             nodes.preChange(parentName, parent);
+            // 6 修改父节点版本
             if (parentCVersion == -1) {
                 parentCVersion = parent.stat.getCversion();
                 parentCVersion++;
@@ -507,10 +541,15 @@ public class DataTree {
                 parent.stat.setPzxid(zxid);
             }
             DataNode child = new DataNode(data, longval, stat);
+            // 7 父路径下添加子路径
             parent.addChild(childName);
+            // 8 从内存目录树摘要中添加parentName路径的摘要
             nodes.postChange(parentName, parent);
+            // 9 修改节点数据统计值
             nodeDataSize.addAndGet(getNodeSize(path, child.data));
+            // 10 添加新节点到内存目录树
             nodes.put(path, child);
+            // 11 判断操作的节点类型，添加到对应集合
             EphemeralType ephemeralType = EphemeralType.get(ephemeralOwner);
             if (ephemeralType == EphemeralType.CONTAINER) {
                 containers.add(path);
@@ -526,23 +565,32 @@ public class DataTree {
                     list.add(path);
                 }
             }
+            // 12 如果outputStat非空，说明是客户端传入，然后赋值给它，用于将节点stat返回给客户端
             if (outputStat != null) {
                 child.copyStat(outputStat);
             }
         }
         // now check if its one of the zookeeper node child
+        // 13 校验创建的是否是"/zookeeper/quota"的子节点，也就是为某节点设置配额信息。配额分为两种，一种是对子节点数量的限制，称之count限制，一种是节点数据大小的限制，称之为byte限制
         if (parentName.startsWith(quotaZookeeper)) {
             // now check if its the limit node
+            // 13.1 zookeeper_limits是对节点的限制，表示最大能到多少
             if (Quotas.limitNode.equals(childName)) {
                 // this is the limit node
                 // get the parent and add it to the trie
+                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_limits" ，则结果为："/device/ndr/zookeeper_limits"
+                // 将 "/device/ndr/zookeeper_limits"节点添加到trie树
                 pTrie.addPath(parentName.substring(quotaZookeeper.length()));
             }
+            // 13.2 zookeeper_stats是节点的当前状态，表示已经用了多少
             if (Quotas.statNode.equals(childName)) {
+                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_stats" ，则结果为："/device/ndr/zookeeper_stats"
+                // 更新"/device/ndr"节点在"/zookeeper/quota/device/ndr/zookeeper_stats"路径下对应的data中存放的节点数量和数据大小
                 updateQuotaForPath(parentName.substring(quotaZookeeper.length()));
             }
         }
         // also check to update the quotas for this node
+        // 14 计算是否超过限制，进行告警日志打印
         String lastPrefix = getMaxPrefixWithQuota(path);
         long bytes = data == null ? 0 : data.length;
         if (lastPrefix != null) {
@@ -550,6 +598,7 @@ public class DataTree {
             updateCountBytes(lastPrefix, bytes, 1);
         }
         updateWriteStat(path, bytes);
+        // 15 触发事件
         dataWatches.triggerWatch(path, Event.EventType.NodeCreated);
         childWatches.triggerWatch(parentName.equals("") ? "/" : parentName, Event.EventType.NodeChildrenChanged);
     }
@@ -1212,6 +1261,7 @@ public class DataTree {
     }
 
     /**
+     * 该方法获取参数path路径下的节点数和字节数，包括path本身
      * this method gets the count of nodes and the bytes under a subtree
      *
      * @param path
@@ -1240,6 +1290,7 @@ public class DataTree {
     }
 
     /**
+     * 更新给定路径的节点数量和节点数据大小
      * update the quota for the given path
      *
      * @param path
