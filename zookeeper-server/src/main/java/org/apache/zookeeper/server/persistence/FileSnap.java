@@ -75,20 +75,27 @@ public class FileSnap implements SnapShot {
         // we run through 100 snapshots (not all of them)
         // if we cannot get it running within 100 snapshots
         // we should  give up
+        // 1. 查找100个合法的snapshot文件
         List<File> snapList = findNValidSnapshots(100);
+        // 2. 无snapshot文件，直接返回
         if (snapList.size() == 0) {
             return -1L;
         }
         File snap = null;
         long snapZxid = -1;
+        // 默认文件不合法
         boolean foundValid = false;
         for (int i = 0, snapListSize = snapList.size(); i < snapListSize; i++) {
+            // 读取snap
             snap = snapList.get(i);
             LOG.info("Reading snapshot {}", snap);
             snapZxid = Util.getZxidFromName(snap.getName(), SNAPSHOT_FILE_PREFIX);
+
             try (CheckedInputStream snapIS = SnapStream.getInputStream(snap)) {
                 InputArchive ia = BinaryInputArchive.getArchive(snapIS);
+                // 反序列化
                 deserialize(dt, sessions, ia);
+                // 验证checksum
                 SnapStream.checkSealIntegrity(snapIS, ia);
 
                 // Digest feature was added after the CRC to make it backward
@@ -225,7 +232,9 @@ public class FileSnap implements SnapShot {
         if (header == null) {
             throw new IllegalStateException("Snapshot's not open for writing: uninitialized header");
         }
+        // header序列化
         header.serialize(oa, "fileheader");
+        // dt、sessions序列化
         SerializeUtils.serializeSnapshot(dt, oa, sessions);
     }
 
@@ -242,10 +251,13 @@ public class FileSnap implements SnapShot {
         File snapShot,
         boolean fsync) throws IOException {
         if (!close) {
+            // 1. 构建文件输出流
             try (CheckedOutputStream snapOS = SnapStream.getOutputStream(snapShot, fsync)) {
                 OutputArchive oa = BinaryOutputArchive.getArchive(snapOS);
                 FileHeader header = new FileHeader(SNAP_MAGIC, VERSION, dbId);
+                // 2. 序列化dt、sessions、header
                 serialize(dt, sessions, oa, header);
+                // 3. 写入验证值
                 SnapStream.sealStream(snapOS, oa);
 
                 // Digest feature was added after the CRC to make it backward
@@ -258,6 +270,7 @@ public class FileSnap implements SnapShot {
                     SnapStream.sealStream(snapOS, oa);
                 }
 
+                // 生成快照信息
                 lastSnapshotInfo = new SnapshotInfo(
                     Util.getZxidFromName(snapShot.getName(), SNAPSHOT_FILE_PREFIX),
                     snapShot.lastModified() / 1000);
