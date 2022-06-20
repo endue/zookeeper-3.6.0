@@ -574,31 +574,28 @@ public class DataTree {
         // 13 校验创建的是否是"/zookeeper/quota"的子节点，也就是为某节点设置配额信息。配额分为两种，一种是对子节点数量的限制，称之count限制，一种是节点数据大小的限制，称之为byte限制
         if (parentName.startsWith(quotaZookeeper)) {
             // now check if its the limit node
-            // 13.1 zookeeper_limits是对节点的限制，表示最大能到多少
+            // 13.1 zookeeper_limits是对节点配额信息的设置，比如 path为："/zookeeper/quota/device/ndr/zookeeper_limits"
+            // 则最终创建的是"/zookeeper/quota/device/ndr/zookeeper_limits"节点，节点中的DataNode记录了节点的配额信息
             if (Quotas.limitNode.equals(childName)) {
-                // this is the limit node
-                // get the parent and add it to the trie
-                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_limits" ，则结果为："/device/ndr"
-                // 将 "/device/ndr"节点添加到trie树
                 pTrie.addPath(parentName.substring(quotaZookeeper.length()));
             }
-            // 13.2 zookeeper_stats是节点的当前状态，表示已经用了多少
+            // 13.2 zookeeper_stats是节点已用配额信息，比如 path为："/zookeeper/quota/device/ndr/zookeeper_stats"
+            // 则最终创建"/zookeeper/quota/device/ndr/zookeeper_stats" 节点并会更新"/device/ndr"路径下存放的节点数量和数据大小(包括自身 + 子节点)
             if (Quotas.statNode.equals(childName)) {
-                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_stats" ，则结果为："/device/ndr"
-                // 更新"/device/ndr"节点在"/zookeeper/quota/device/ndr/zookeeper_stats"路径下对应的data中存放的节点数量和数据大小
                 updateQuotaForPath(parentName.substring(quotaZookeeper.length()));
             }
         }
         // also check to update the quotas for this node
-        // 14 计算是否超过限制，进行告警日志打印
+        // 14 获取path的父路径是否设置配额信息
         String lastPrefix = getMaxPrefixWithQuota(path);
         long bytes = data == null ? 0 : data.length;
+        // 15 更新path的父路径已用配额信息,如果超过阈值触发告警
         if (lastPrefix != null) {
             // ok we have some match and need to update
             updateCountBytes(lastPrefix, bytes, 1);
         }
         updateWriteStat(path, bytes);
-        // 15 触发事件
+        // 16 触发事件
         dataWatches.triggerWatch(path, Event.EventType.NodeCreated);
         childWatches.triggerWatch(parentName.equals("") ? "/" : parentName, Event.EventType.NodeChildrenChanged);
     }
@@ -620,12 +617,15 @@ public class DataTree {
         // The child might already be deleted during taking fuzzy snapshot,
         // but we still need to update the pzxid here before throw exception
         // for no such child
+        // 1 删除的节点根本就不存在，因为父节点不存在
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
             throw new KeeperException.NoNodeException();
         }
+        // 2 更新父节点的
         synchronized (parent) {
             nodes.preChange(parentName, parent);
+            // 2.1 从父节点中删除并修改父节点事务ID
             parent.removeChild(childName);
             // Only update pzxid when the zxid is larger than the current pzxid,
             // otherwise we might override some higher pzxid set by a create
@@ -666,6 +666,7 @@ public class DataTree {
             }
         }
 
+        // 删除某个路径的配额信息
         if (parentName.startsWith(procZookeeper) && Quotas.limitNode.equals(childName)) {
             // delete the node in the trie.
             // we need to update the trie as well
@@ -673,6 +674,7 @@ public class DataTree {
         }
 
         // also check to update the quotas for this node
+        // 删除path路径，更新path路径的配额信息
         String lastPrefix = getMaxPrefixWithQuota(path);
         if (lastPrefix != null) {
             // ok we have some match and need to update
@@ -697,10 +699,21 @@ public class DataTree {
         }
 
         WatcherOrBitSet processed = dataWatches.triggerWatch(path, EventType.NodeDeleted);
+        // 触发事件
         childWatches.triggerWatch(path, EventType.NodeDeleted, processed);
         childWatches.triggerWatch("".equals(parentName) ? "/" : parentName, EventType.NodeChildrenChanged);
     }
 
+    /**
+     * 更新path路径对应DataNode节点数据并返回更新后的值
+     * @param path
+     * @param data
+     * @param version
+     * @param zxid
+     * @param time
+     * @return
+     * @throws KeeperException.NoNodeException
+     */
     public Stat setData(String path, byte[] data, int version, long zxid, long time) throws KeeperException.NoNodeException {
         Stat s = new Stat();
         DataNode n = nodes.get(path);
