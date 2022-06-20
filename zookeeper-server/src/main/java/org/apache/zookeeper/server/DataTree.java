@@ -578,13 +578,13 @@ public class DataTree {
             if (Quotas.limitNode.equals(childName)) {
                 // this is the limit node
                 // get the parent and add it to the trie
-                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_limits" ，则结果为："/device/ndr/zookeeper_limits"
-                // 将 "/device/ndr/zookeeper_limits"节点添加到trie树
+                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_limits" ，则结果为："/device/ndr"
+                // 将 "/device/ndr"节点添加到trie树
                 pTrie.addPath(parentName.substring(quotaZookeeper.length()));
             }
             // 13.2 zookeeper_stats是节点的当前状态，表示已经用了多少
             if (Quotas.statNode.equals(childName)) {
-                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_stats" ，则结果为："/device/ndr/zookeeper_stats"
+                // parentName.substring(quotaZookeeper.length())获取操作的节点, 比如 path为："/zookeeper/quota/device/ndr/zookeeper_stats" ，则结果为："/device/ndr"
                 // 更新"/device/ndr"节点在"/zookeeper/quota/device/ndr/zookeeper_stats"路径下对应的data中存放的节点数量和数据大小
                 updateQuotaForPath(parentName.substring(quotaZookeeper.length()));
             }
