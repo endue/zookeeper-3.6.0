@@ -39,9 +39,15 @@ import org.apache.zookeeper.data.StatPersisted;
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class DataNode implements Record {
 
+    /**
+     * 节点摘要信息
+     */
     // the digest value of this node, calculated from path, data and stat
     private volatile long digest;
 
+    /**
+     * 节点摘要信息是否最新
+     */
     // indicate if the digest of this node is up to date or not, used to
     // optimize the performance.
     volatile boolean digestCached;
