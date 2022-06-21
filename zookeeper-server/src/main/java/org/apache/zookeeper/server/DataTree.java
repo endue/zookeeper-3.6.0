@@ -491,6 +491,7 @@ public class DataTree {
      *            A Stat object to store Stat output results into.
      * @throws NodeExistsException
      * @throws NoNodeException
+     * 修改父节点的cversion和pzxid
      */
     public void createNode(final String path, byte[] data, List<ACL> acl, long ephemeralOwner, int parentCVersion, long zxid, long time, Stat outputStat) throws KeeperException.NoNodeException, KeeperException.NodeExistsException {
         int lastSlash = path.lastIndexOf('/');
@@ -526,7 +527,7 @@ public class DataTree {
 
             // 5 从内存目录树摘要中清空parentName路径的摘要
             nodes.preChange(parentName, parent);
-            // 6 修改父节点版本
+
             if (parentCVersion == -1) {
                 parentCVersion = parent.stat.getCversion();
                 parentCVersion++;
@@ -536,6 +537,7 @@ public class DataTree {
             // exist in the snapshot, so replay the creation might revert the
             // cversion and pzxid, need to check and only update when it's
             // larger.
+            // 6 修改父节点的cversion和pzxid
             if (parentCVersion > parent.stat.getCversion()) {
                 parent.stat.setCversion(parentCVersion);
                 parent.stat.setPzxid(zxid);
@@ -608,6 +610,7 @@ public class DataTree {
      * @param zxid
      *            the current zxid
      * @throws KeeperException.NoNodeException
+     * 修改父节点中的pzxid
      */
     public void deleteNode(String path, long zxid) throws KeeperException.NoNodeException {
         int lastSlash = path.lastIndexOf('/');
@@ -630,6 +633,7 @@ public class DataTree {
             // Only update pzxid when the zxid is larger than the current pzxid,
             // otherwise we might override some higher pzxid set by a create
             // Txn, which could cause the cversion and pzxid inconsistent
+            // 2.2 修改父节点中的pzxid
             if (zxid > parent.stat.getPzxid()) {
                 parent.stat.setPzxid(zxid);
             }
@@ -713,6 +717,7 @@ public class DataTree {
      * @param time
      * @return
      * @throws KeeperException.NoNodeException
+     * 更新节点的mzxid、mtime、version
      */
     public Stat setData(String path, byte[] data, int version, long zxid, long time) throws KeeperException.NoNodeException {
         Stat s = new Stat();
@@ -837,6 +842,15 @@ public class DataTree {
         return (int) nodes.entrySet().parallelStream().filter(entry -> entry.getKey().startsWith(path + "/")).count();
     }
 
+    /**
+     * 修改节点acl
+     * @param path
+     * @param acl
+     * @param version
+     * @return
+     * @throws KeeperException.NoNodeException
+     * 修改aversion
+     */
     public Stat setACL(String path, List<ACL> acl, int version) throws KeeperException.NoNodeException {
         Stat stat = new Stat();
         DataNode n = nodes.get(path);
