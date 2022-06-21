@@ -941,6 +941,10 @@ public class DataTree {
 
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, TxnDigest digest) {
         ProcessTxnResult result = processTxn(header, txn);
+        /**
+         * 处理完请求比对请求预计摘要信息和真实摘要信息是否一致
+         * {@link PrepRequestProcessor#pRequest2Txn(int, long, org.apache.zookeeper.server.Request, org.apache.jute.Record, boolean) }
+         */
         compareDigest(header, txn, digest);
         return result;
     }

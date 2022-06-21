@@ -320,6 +320,10 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
                     Time.currentWallTime(), type));
         }
 
+        /**
+         * 参考
+         * {@link org.apache.zookeeper.server.DataTree#processTxn(org.apache.zookeeper.txn.TxnHeader, org.apache.jute.Record, org.apache.zookeeper.txn.TxnDigest)}
+         */
         PrecalculatedDigest precalculatedDigest;
         switch (type) {
         case OpCode.create:
@@ -723,6 +727,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         ChangeRecord nodeRecord = new ChangeRecord(
                 request.getHdr().getZxid(), path, s, 0, listACL);
         nodeRecord.data = data;
+        // 计算处理完当前请求后预计摘要信息，之后将摘要信息放入请求
         nodeRecord.precalculatedDigest = precalculateDigest(
                 DigestOpCode.ADD, path, nodeRecord.data, s);
         setTxnDigest(request, nodeRecord.precalculatedDigest);
