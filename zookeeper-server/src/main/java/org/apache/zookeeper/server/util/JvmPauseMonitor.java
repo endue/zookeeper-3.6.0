@@ -49,23 +49,41 @@ public class JvmPauseMonitor {
 
     public static final String JVM_PAUSE_MONITOR_FEATURE_SWITCH_KEY = "jvm.pause.monitor";
 
+    /**
+     * GC监控间隔，默认500ms
+     */
     /** The target sleep time */
     protected long sleepTimeMs;
     public static final String SLEEP_TIME_MS_KEY = "jvm.pause.sleep.time.ms";
     public static final long SLEEP_TIME_MS_DEFAULT = 500;
 
+    /**
+     * 触发WARN日志打印的GC时长阈值，默认10000ms
+     */
     /** log WARN if we detect a pause longer than this threshold */
     protected long warnThresholdMs;
     public static final String WARN_THRESHOLD_KEY = "jvm.pause.warn-threshold.ms";
     public static final long WARN_THRESHOLD_DEFAULT = 10000;
 
+    /**
+     * 触发INFO日志打印的GC时长阈值，默认1000ms
+     */
     /** log INFO if we detect a pause longer than this threshold */
     protected long infoThresholdMs;
     public static final String INFO_THRESHOLD_KEY = "jvm.pause.info-threshold.ms";
     public static final long INFO_THRESHOLD_DEFAULT = 1000;
 
+    /**
+     * WARN日志触发统计
+     */
     private long numGcWarnThresholdExceeded = 0;
+    /**
+     * INFO日志触发统计
+     */
     private long numGcInfoThresholdExceeded = 0;
+    /**
+     * 总GC耗时统计
+     */
     private long totalGcExtraSleepTime = 0;
 
     private Thread monitorThread;
