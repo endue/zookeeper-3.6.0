@@ -205,6 +205,7 @@ public class RequestPathMetricsCollector {
     }
 
     /**
+     * 统计入口，在FinalRequestProcessor中触发
      * 处理OpCode，将对应的OpCode和路径加入到相应队列中
      * The public interface of the buffer. FinalRequestHandler will call into this for
      * each request that has a path and this needs to be fast. we sample the path so that
