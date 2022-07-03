@@ -301,17 +301,24 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
      *
      */
     public ZooKeeperServer(FileTxnSnapLog txnLogFactory, int tickTime, int minSessionTimeout, int maxSessionTimeout, int clientPortListenBacklog, ZKDatabase zkDb, String initialConfig) {
+        // 1 初始化服务统计信息
         serverStats = new ServerStats(this);
+        // 2 引用事务请求和内存目录树类型，并传入服务统计信息对象
         this.txnLogFactory = txnLogFactory;
         this.txnLogFactory.setServerStats(this.serverStats);
+        // 3 引用内存数据库
         this.zkDb = zkDb;
+        // 4 初始化默认一个时间单元
         this.tickTime = tickTime;
+        // 5 初始化最大和最新会话超时时间
         setMinSessionTimeout(minSessionTimeout);
         setMaxSessionTimeout(maxSessionTimeout);
+        // 6
         this.listenBacklog = clientPortListenBacklog;
-
+        // 7 设置zk监听
         listener = new ZooKeeperServerListenerImpl(this);
-
+        // 8 针对OpCode.getData、OpCode.getChildren2两个命令设置的缓存
+        // 参考：https://zookeeper.apache.org/doc/r3.6.3/zookeeperAdmin.html#sc_minimumConfiguration
         readResponseCache = new ResponseCache(Integer.getInteger(
             GET_DATA_RESPONSE_CACHE_SIZE,
             ResponseCache.DEFAULT_RESPONSE_CACHE_SIZE));
@@ -321,7 +328,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             ResponseCache.DEFAULT_RESPONSE_CACHE_SIZE));
 
         this.initialConfig = initialConfig;
-
+        // 9 初始化请求路径统计类
         this.requestPathMetricsCollector = new RequestPathMetricsCollector();
 
         this.initLargeRequestThrottlingSettings();
