@@ -223,6 +223,7 @@ public class JettyAdminServer implements AdminServer {
             // Capture the command name from the URL
             String cmd = request.getPathInfo();
             if (cmd == null || cmd.equals("/")) {
+                // 返回所有的command命令
                 // No command specified, print links to all commands instead
                 for (String link : commandLinks()) {
                     response.getWriter().println(link);
@@ -230,9 +231,11 @@ public class JettyAdminServer implements AdminServer {
                 }
                 return;
             }
+            // 读取命令
             // Strip leading "/"
             cmd = cmd.substring(1);
 
+            // 读取请求参数
             // Extract keyword arguments to command from request parameters
             @SuppressWarnings("unchecked") Map<String, String[]> parameterMap = request.getParameterMap();
             Map<String, String> kwargs = new HashMap<String, String>();
@@ -240,9 +243,11 @@ public class JettyAdminServer implements AdminServer {
                 kwargs.put(entry.getKey(), entry.getValue()[0]);
             }
 
+            // 执行命令
             // Run the command
             CommandResponse cmdResponse = Commands.runCommand(cmd, zkServer, kwargs);
 
+            // 返回结果
             // Format and print the output of the command
             CommandOutputter outputter = new JsonOutputter();
             response.setStatus(HttpServletResponse.SC_OK);
