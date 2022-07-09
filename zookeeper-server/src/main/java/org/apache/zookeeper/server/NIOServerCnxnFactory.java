@@ -183,7 +183,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         public AcceptThread(ServerSocketChannel ss, InetSocketAddress addr, Set<SelectorThread> selectorThreads) throws IOException {
             super("NIOServerCxnFactory.AcceptThread:" + addr);
             this.acceptSocket = ss;
+            // 将ServerSocketChannel 注册到选择器中 关心Accept事件
             this.acceptKey = acceptSocket.register(selector, SelectionKey.OP_ACCEPT);
+            // 保存所有的SelectorThread
             this.selectorThreads = Collections.unmodifiableList(new ArrayList<SelectorThread>(selectorThreads));
             selectorIterator = this.selectorThreads.iterator();
         }
@@ -216,8 +218,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         private void select() {
             try {
+                // 阻塞等待关心的channel事件发生
                 selector.select();
-
+                // 如果有事件发生select>0 获取到相关事件的集合
                 Iterator<SelectionKey> selectedKeys = selector.selectedKeys().iterator();
                 while (!stopped && selectedKeys.hasNext()) {
                     SelectionKey key = selectedKeys.next();
@@ -226,6 +229,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                     if (!key.isValid()) {
                         continue;
                     }
+                    // 处理连接请求
                     if (key.isAcceptable()) {
                         if (!doAccept()) {
                             // If unable to pull a new connection off the accept
@@ -272,21 +276,22 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             boolean accepted = false;
             SocketChannel sc = null;
             try {
+                // 为当前客户端生成一个SocketChannel
                 sc = acceptSocket.accept();
                 accepted = true;
-                // 判断是否达到当前服务的最大连接数
+                // 判断服务端是否已达到最大连接数
                 if (limitTotalNumberOfCnxns()) {
                     throw new IOException("Too many connections max allowed is " + maxCnxns);
                 }
                 InetAddress ia = sc.socket().getInetAddress();
                 int cnxncount = getClientCnxnCount(ia);
-                // 判断是否达到当前运行客户端的最大连接数
+                // 判断是否达到当前允许的客户端最大连接数
                 if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                     throw new IOException("Too many connections from " + ia + " - max is " + maxClientCnxns);
                 }
 
                 LOG.debug("Accepted socket connection from {}", sc.socket().getRemoteSocketAddress());
-
+                // 设置客户端为非阻塞的
                 sc.configureBlocking(false);
                 // 将连接的所有客户端轮询给SelectorThread
                 // Round-robin assign this connection to a selector thread
@@ -304,8 +309,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 // accept, maxClientCnxns, configureBlocking
                 ServerMetrics.getMetrics().CONNECTION_REJECTED.add(1);
                 acceptErrorLogger.rateLimitLog("Error accepting new connection: " + e.getMessage());
+                // 出现异常立即关闭客户端
                 fastCloseSock(sc);
             }
+            // 返回是否acceptSocket.accept()成功
             return accepted;
         }
 
@@ -645,25 +652,30 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
         configureSaslLogin();
 
+        // 设置单个客户端最大连接数
         maxClientCnxns = maxcc;
         initMaxCnxns();
+        // 设置客户端超时时间
         sessionlessCnxnTimeout = Integer.getInteger(ZOOKEEPER_NIO_SESSIONLESS_CNXN_TIMEOUT, 10000);
         // We also use the sessionlessCnxnTimeout as expiring interval for
         // cnxnExpiryQueue. These don't need to be the same, but the expiring
         // interval passed into the ExpiryQueue() constructor below should be
         // less than or equal to the timeout.
+        // 会话时间桶
         cnxnExpiryQueue = new ExpiryQueue<NIOServerCnxn>(sessionlessCnxnTimeout);
+        // 会话过期检测现场
         expirerThread = new ConnectionExpirerThread();
 
         int numCores = Runtime.getRuntime().availableProcessors();
         // 32 cores sweet spot seems to be 4 selector threads
+        // 初始化相关线程
         numSelectorThreads = Integer.getInteger(
             ZOOKEEPER_NIO_NUM_SELECTOR_THREADS,
             Math.max((int) Math.sqrt((float) numCores / 2), 1));
         if (numSelectorThreads < 1) {
             throw new IOException("numSelectorThreads must be at least 1");
         }
-
+        // 工作线程数
         numWorkerThreads = Integer.getInteger(ZOOKEEPER_NIO_NUM_WORKER_THREADS, 2 * numCores);
         workerShutdownTimeoutMS = Long.getLong(ZOOKEEPER_NIO_SHUTDOWN_TIMEOUT, 5000);
 
@@ -678,6 +690,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
 
         listenBacklog = backlog;
+        // 初始化服务端ServerSocketChannel
         this.ss = ServerSocketChannel.open();
         ss.socket().setReuseAddress(true);
         LOG.info("binding to port {}", addr);
