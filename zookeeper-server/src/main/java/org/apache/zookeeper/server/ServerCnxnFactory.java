@@ -200,6 +200,9 @@ public abstract class ServerCnxnFactory {
 
     private final ConcurrentHashMap<ServerCnxn, ConnectionBean> connectionBeans = new ConcurrentHashMap<ServerCnxn, ConnectionBean>();
 
+    /**
+     * 当前服务端已创建的NIOServerCnxn数量，用于限制服务端的最大连接数
+     */
     // Connection set is relied on heavily by four letter commands
     // Construct a ConcurrentHashSet using a ConcurrentHashMap
     protected final Set<ServerCnxn> cnxns = Collections.newSetFromMap(new ConcurrentHashMap<ServerCnxn, Boolean>());

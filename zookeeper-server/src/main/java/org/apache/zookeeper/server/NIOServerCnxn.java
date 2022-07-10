@@ -59,18 +59,35 @@ public class NIOServerCnxn extends ServerCnxn {
 
     private final NIOServerCnxnFactory factory;
 
+    /**
+     * 为客户端创建的SocketChannel
+     */
     private final SocketChannel sock;
 
+    /**
+     * 负责处理客户端请求的SelectorThread
+     */
     private final SelectorThread selectorThread;
 
+    /**
+     * 为客户端创建的SocketChannel对应的SelectionKey
+     */
     private final SelectionKey sk;
 
+    /**
+     * 客户端是否已建立连接
+     */
     private boolean initialized;
 
+    /**
+     * 读取到客户端的数据
+     */
     private final ByteBuffer lenBuffer = ByteBuffer.allocate(4);
-
     private ByteBuffer incomingBuffer = lenBuffer;
 
+    /**
+     * 发送给客户端的数据
+     */
     private final Queue<ByteBuffer> outgoingBuffers = new LinkedBlockingQueue<ByteBuffer>();
     /**
      * 客户端会话超时时间
