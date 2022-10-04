@@ -772,9 +772,12 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     @Override
     public void start() {
         stopped = false;
+        // 1 创建workerPool内部
         if (workerPool == null) {
             workerPool = new WorkerService("NIOWorker", numWorkerThreads, false);
         }
+        // 2 启动在org.apache.zookeeper.server.NIOServerCnxnFactory.configure方法中创建的
+        // SelectorThread、AcceptThread、ConnectionExpirerThread线程
         for (SelectorThread thread : selectorThreads) {
             if (thread.getState() == Thread.State.NEW) {
                 thread.start();
@@ -799,11 +802,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      */
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer) throws IOException, InterruptedException {
-        // 1. 启动NIO,接收客户端的请求
+        // 1. 启动NIO相关线程,开始处理客户端的请求
         start();
         // 2. 设置ServerCnxnFactory和ZooKeeperServer互相持有
         setZooKeeperServer(zks);
-        // 防止重复创建和启动
+        // 3 启动zk服务ZooKeeperServer
         if (startServer) {
             // 3. 创建内存数据库
             zks.startdata();

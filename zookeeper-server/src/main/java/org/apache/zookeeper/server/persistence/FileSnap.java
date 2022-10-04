@@ -46,6 +46,9 @@ public class FileSnap implements SnapShot {
      * 记录内存目录树快照的文件夹,对应zk配置文件中的dataDir选项
      */
     File snapDir;
+    /**
+     * 记录最近一次序列化后的相关信息
+     */
     SnapshotInfo lastSnapshotInfo = null;
     private volatile boolean close = false;
     private static final int VERSION = 2;
@@ -83,7 +86,7 @@ public class FileSnap implements SnapShot {
         }
         File snap = null;
         long snapZxid = -1;
-        // 默认文件不合法
+        // 初始化是否查找到有效文件
         boolean foundValid = false;
         for (int i = 0, snapListSize = snapList.size(); i < snapListSize; i++) {
             // 读取snap

@@ -300,15 +300,16 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
      * actually start listening for clients until run() is invoked.
      *
      */
-    public ZooKeeperServer(FileTxnSnapLog txnLogFactory, int tickTime, int minSessionTimeout, int maxSessionTimeout, int clientPortListenBacklog, ZKDatabase zkDb, String initialConfig) {
+    public ZooKeeperServer(FileTxnSnapLog txnLogFactory, int tickTime, int minSessionTimeout,
+                           int maxSessionTimeout, int clientPortListenBacklog, ZKDatabase zkDb, String initialConfig) {
         // 1 初始化服务统计信息
         serverStats = new ServerStats(this);
-        // 2 引用事务请求和内存目录树类型，并传入服务统计信息对象
+        // 2 引用事务请求和内存目录树持有者FileTxnSnapLog，并传入服务统计信息对象
         this.txnLogFactory = txnLogFactory;
         this.txnLogFactory.setServerStats(this.serverStats);
-        // 3 引用内存数据库
+        // 3 引用内存数据库，单机模式该值为null
         this.zkDb = zkDb;
-        // 4 初始化默认一个时间单元
+        // 4 初始化zk基本时间单位, 默认3000ms
         this.tickTime = tickTime;
         // 5 初始化最大和最新会话超时时间
         setMinSessionTimeout(minSessionTimeout);
@@ -685,7 +686,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         requestPathMetricsCollector.start();
         // session追踪模式，和集群模式有关，也仅限leader
         localSessionEnabled = sessionTracker.isLocalSessionsEnabled();
-        //
+        // 与enqueueRequest()方法相呼应,
         notifyAll();
     }
 
