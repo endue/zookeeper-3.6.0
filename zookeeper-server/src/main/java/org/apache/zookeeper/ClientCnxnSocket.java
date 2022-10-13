@@ -65,7 +65,15 @@ abstract class ClientCnxnSocket {
     protected long lastHeard;
     protected long lastSend;
     protected long now;
+    /**
+     * 发送请求线程
+     * 其实是{@link ClientCnxn#sendThread} 的引用
+     */
     protected ClientCnxn.SendThread sendThread;
+    /**
+     * 暂存需要发送的请求
+     * 其实是{@link org.apache.zookeeper.ClientCnxn#outgoingQueue}的引用
+     */
     protected LinkedBlockingDeque<Packet> outgoingQueue;
     protected ZKClientConfig clientConfig;
     private int packetLen = ZKClientConfig.CLIENT_MAX_PACKET_LENGTH_DEFAULT;
