@@ -32,32 +32,57 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * 删除内存目录树中的container、ttl节点
+ *
  * Manages cleanup of container ZNodes. This class is meant to only
  * be run from the leader. There's no harm in running from followers/observers
  * but that will be extra work that's not needed. Once started, it periodically
  * checks container nodes that have a cversion &gt; 0 and have no children. A
  * delete is attempted on the node. The result of the delete is unimportant.
  * If the proposal fails or the container node is not empty there's no harm.
- * 删除内存目录树中的container节点
+ *
  */
 public class ContainerManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(ContainerManager.class);
-    private final ZKDatabase zkDb;
-    private final RequestProcessor requestProcessor;
+
     /**
-     * 检查间隔，默认1000ms
+     * 内存数据库
+     */
+    private final ZKDatabase zkDb;
+
+    /**
+     * 请求处理器
+     * 值为：zkServer.firstProcessor
+     */
+    private final RequestProcessor requestProcessor;
+
+    /**
+     * 检查间隔，默认60s
+     * 值为：Integer.getInteger("znode.container.checkIntervalMs", (int) TimeUnit.MINUTES.toMillis(1))
      */
     private final int checkIntervalMs;
+
     /**
-     * 每秒中删除container节点的最大个数
+     * 每分钟删除container节点的最大个数
+     * 值为："znode.container.maxPerMinute", 10000
      */
     private final int maxPerMinute;
+
     /**
      * container最大未使用时间
+     * 值为："znode.container.maxNeverUsedIntervalMs", 0
      */
     private final long maxNeverUsedIntervalMs;
+
+    /**
+     * 定时任务
+     */
     private final Timer timer;
+
+    /**
+     * 定时任务原子持有类
+     */
     private final AtomicReference<TimerTask> task = new AtomicReference<TimerTask>(null);
 
     /**
@@ -73,6 +98,8 @@ public class ContainerManager {
     }
 
     /**
+     * 初始化{@link ZooKeeperServerMain#runFromConfig(ServerConfig)}
+     *
      * @param zkDb the ZK database
      * @param requestProcessor request processer - used to inject delete
      *                         container requests
@@ -94,6 +121,8 @@ public class ContainerManager {
     }
 
     /**
+     * 启动服务，默认每隔60s中检查一次
+     *
      * start/restart the timer the runs the check. Can safely be called
      * multiple times.
      */
@@ -113,6 +142,7 @@ public class ContainerManager {
                     }
                 }
             };
+            // 基于CAS原子操作，保证线程安全
             if (task.compareAndSet(null, timerTask)) {
                 timer.scheduleAtFixedRate(timerTask, checkIntervalMs, checkIntervalMs);
             }
@@ -136,9 +166,11 @@ public class ContainerManager {
     public void checkContainers() throws InterruptedException {
         // 计算平均删除一个container节点需要的时间
         long minIntervalMs = getMinIntervalMs();
+
         for (String containerPath : getCandidates()) {
             long startMs = Time.currentElapsedTime();
 
+            // 封装deleteContainer请求
             ByteBuffer path = ByteBuffer.wrap(containerPath.getBytes());
             Request request = new Request(null, 0, 0, ZooDefs.OpCode.deleteContainer, path, null);
             try {
@@ -150,6 +182,7 @@ public class ContainerManager {
 
             long elapsedMs = Time.currentElapsedTime() - startMs;
             long waitMs = minIntervalMs - elapsedMs;
+
             // 删除当前container节点耗时小于预计时间，则等待，因为规定了每秒删除的阈值
             if (waitMs > 0) {
                 Thread.sleep(waitMs);
@@ -170,8 +203,11 @@ public class ContainerManager {
     // VisibleForTesting
     protected Collection<String> getCandidates() {
         Set<String> candidates = new HashSet<String>();
+
+        // 获取Container节点
         for (String containerPath : zkDb.getDataTree().getContainers()) {
             DataNode node = zkDb.getDataTree().getNode(containerPath);
+            // container节点没有子节点，需要判断是否为新增节点或者开启过期功能
             if ((node != null) && node.getChildren().isEmpty()) {
                 /*
                     cversion > 0: keep newly created containers from being deleted
@@ -179,6 +215,7 @@ public class ContainerManager {
                     container just before a container cleaning period the container
                     would be immediately be deleted.
                  */
+                // 防止新创建的container被删除，因为新创建的container cversion=0
                 if (node.stat.getCversion() > 0) {
                     candidates.add(containerPath);
                 } else {
@@ -187,22 +224,29 @@ public class ContainerManager {
                         property to be set that sets the max time for a cversion-0 container
                         to stay before being deleted
                      */
+                    // 过期节点，节点超过一定时间未被访问(无论是否新创建)。默认maxNeverUsedIntervalMs值为0
                     if ((maxNeverUsedIntervalMs != 0) && (getElapsed(node) > maxNeverUsedIntervalMs)) {
                         candidates.add(containerPath);
                     }
                 }
             }
+
+            // 上面已经包括了，重复逻辑？
             if ((node != null) && (node.stat.getCversion() > 0) && (node.getChildren().isEmpty())) {
                 candidates.add(containerPath);
             }
         }
+
+        // 获取ttl节点
         for (String ttlPath : zkDb.getDataTree().getTtls()) {
             DataNode node = zkDb.getDataTree().getNode(ttlPath);
             if (node != null) {
                 Set<String> children = node.getChildren();
+                // ttl节点没有子节点，才会判断是否需要清理
                 if (children.isEmpty()) {
                     if (EphemeralType.get(node.stat.getEphemeralOwner()) == EphemeralType.TTL) {
                         long ttl = EphemeralType.TTL.getValue(node.stat.getEphemeralOwner());
+                        // 节点距离上次被访问时间超过了ttl，需要清理
                         if ((ttl != 0) && (getElapsed(node) > ttl)) {
                             candidates.add(ttlPath);
                         }
@@ -210,6 +254,7 @@ public class ContainerManager {
                 }
             }
         }
+
         return candidates;
     }
 
